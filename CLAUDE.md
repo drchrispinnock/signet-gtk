@@ -7,38 +7,108 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **signet-gtk**: a port of **Signet**, the macOS Tezos wallet written in SwiftUI, to Linux first and
 then the BSDs. Linux is the primary target. FreeBSD should follow, since Swift has a FreeBSD port
 and preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
-there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: use hidapi for
-Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or syscalls
-outside a small platform layer. The repository holds only
-`README.md` and `LICENSE` (MIT) so far. Update this file with the commands and layout once they exist.
+there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: hidapi for
+Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or
+syscalls outside `Sources/SignetGTK/Platform`.
 
-Stack: Swift 6 on Linux (installed with swiftly), GTK4 + libadwaita for the UI, swift-crypto in
-place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the same engine as the
-Mac) for the Taquito bridge. Swift was chosen so upstream's Models, Services and ViewModels can be
-reused with as few changes as possible; only the views and the platform glue are rewritten.
-Development headers come from Debian 13 packages (`libgtk-4-dev`, `libadwaita-1-dev`,
-`libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `pkg-config`).
+Stack: Swift 6 (installed with swiftly, `~/.local/share/swiftly/bin`), GTK4 + libadwaita for the
+UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the
+same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
+(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `pkg-config`).
 
 The development machine is reached over SSH. Its desktop is XFCE on a TigerVNC X server at
-`DISPLAY=:1` (1920x1080), so GUI runs and screenshots use that display.
+`DISPLAY=:1` (1920x1080); run the app there and screenshot it with `import -window <id>`
+(ImageMagick) after finding the window with `xdotool search --name`.
+
+## Commands
+
+```sh
+git submodule update --init                      # after cloning
+swift build                                      # the app: .build/debug/signet-gtk
+DISPLAY=:1 .build/debug/signet-gtk
+swift build --build-tests && swift test --skip-build --no-parallel
+swift test --skip-build --filter KeyGeneratorTests                 # one suite
+swift test --skip-build --filter 'AddressTests/shortensLongAddresses'
+```
+
+Run the whole suite with `--no-parallel`: in parallel, the tests queue more than 64 calls on the
+shared bridge and `BridgeCallGate` refuses the rest (`NSURLErrorDomain -1008`), failing random
+tests. Single suites are fine either way. Network tests are opt-in as upstream: they need
+`SIGNET_NETWORK_TESTS=1`. A crash in the test runner prints no backtrace by default; run
+`.build/out/Products/Debug-linux-x86_64/SignetTests-test-runner --testing-library swift-testing`
+under the toolchain's `lldb` to get one.
+
+## Layout and how upstream is reused
+
+`upstream/` is the Mac repository as a git submodule. `Package.swift` compiles its
+`Signet/Models`, `Signet/Services` and `Signet/ViewModels` **as they are**, together with
+`Sources/SignetGTK`, into one executable module named `Signet` (as on the Mac, where views and
+app share the module; upstream's types are `internal`, so they must). The product is
+`signet-gtk`. Upstream's `SignetTests` compile unchanged against it as the `SignetTests` target
+(`@testable import Signet`).
+
+- Upstream reaches its C hashing (`tzel_blake2s.c`) through Xcode's bridging header; here
+  `Sources/CTzel` compiles it and the same header is passed with `-import-objc-header`.
+- `macOnly` in `Package.swift` lists the upstream files that need macOS frameworks.
+  `Sources/SignetGTK/Platform` replaces the ones the rest of the module needs:
+  - `TaquitoBridge.swift`: follows upstream's file section by section. Differences: JavaScriptCore's
+    GLib API (wrapped in `JavaScriptCore.swift` with the Mac's `JSContext`/`JSValue` names), a
+    `ThreadQueue` (one dedicated thread; JSC's GLib objects must stay on the thread that made
+    them) instead of a `DispatchQueue`, natives as `JSValue(function:in:)` closures instead of
+    `@convention(block)`, one fetch session whose delegate routes events per task, and the log
+    at `$XDG_STATE_HOME/signet/bridge.log`. Unlike the Mac, an exception thrown synchronously by
+    a call is also kept in `context.exception`, so it fails the call instead of only being logged.
+  - `LedgerHID+hidapi.swift`: hidapi in place of IOKit (the name avoids clashing with upstream's
+    `LedgerHID.swift`, which still supplies `LedgerFraming` and `LedgerDevice`). Device ids are
+    hidapi paths. Linux needs Ledger's udev rule (`20-hw1.rules`) for non-root access.
+  - Not yet replaced: `QRCode`, `ImageLoader`, `ArtworkCache`, `Appearance`, `UpdaterService`.
+- `Sources/SignetGTK/Views` holds the GTK views, named after upstream's SwiftUI views
+  (`Views/SendSheet.swift` for `SendSheet`). Static helpers upstream's tests call (such as
+  `SendSheet.capture`) keep their names and signatures.
+- `Sources/SignetGTK/App/main.swift` is still a placeholder window.
+- `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
+  Mac-only code; each returns once the GTK version of what it tests exists.
+
+## Changing upstream
+
+Portability fixes go into upstream itself, never into a copy: in the submodule, on a
+`claude@portable` branch (or another `claude@…` branch) of the Mac repository, for the user to
+merge there. Every such change sits behind `#if canImport(…)`, `#if os(Linux)` or
+`#if SWIFT_PACKAGE` so the Mac compiles exactly the code it compiled before; it can't be built
+here, so keep the Mac side of each `#if` byte-for-byte as it was. The Xcode project is generated
+and committed upstream, so adding a file there means running XcodeGen on the Mac: guard code
+inside an existing file instead.
+
+Linux Foundation (swift-corelibs-foundation) traps already handled upstream, which new code must
+avoid too:
+- A task's own `delegate` is never called; use a session delegate (`BoundedHTTP.Router`).
+- Short-lived `URLSession`s crash when freed (`_MultiHandle deallocated with non-zero retain
+  count`); keep sessions long-lived.
+- A `.cancel` response disposition does not stop the transfer; cancel the task as well.
+- `NSNumber.decimalValue` is inexact even for integers; use `exactDecimal`. Booleans are told
+  apart with `isJSONBoolean`. `JSONDecoder` decodes `Decimal` exactly.
+- `Bundle.main` holds no resources in a SwiftPM build; use `Bundle.module` under `SWIFT_PACKAGE`
+  and list the file in `resources:` in `Package.swift`.
+
+Known test difference: `nativeReadersUseTheBoundedPath` fails because a `URLProtocol` registered
+globally does not reach the companion session made from `.shared`'s configuration. Only the
+test's mock is affected, not real requests.
 
 ## Sibling repositories
 
-- `../signet`: the Mac app (origin `drchrispinnock/signet`). It is the source of truth and keeps
-  evolving, so this port follows it. Before porting or changing a feature, read `../signet/CLAUDE.md`
-  (detailed architecture), `../signet/docs/spec/SPEC.md` and `../signet/docs/spec/EXAMPLE.png`.
-  Behaviour, wording, file formats and edge cases should match the Mac app unless Linux forces a
-  difference. When it does, note the difference here.
-- `../signet-windows`: the Windows port (C# / WinUI 3), which is further along. Its `CLAUDE.md`
-  sets out the porting approach used so far: upstream pulled in as a git submodule `upstream/`
-  whose pin marks the last ported Mac commit, names mirrored one-to-one with the Swift sources so
-  the two codebases stay diffable, upstream tests ported under the same names with skipped stubs
-  as the backlog, and a table of platform substitutions. Follow the same approach here unless
-  there is a reason not to.
+- `../signet`: the Mac app (origin `drchrispinnock/signet`), source of truth; `upstream/` is the
+  same repository. Before porting or changing a feature, read `upstream/CLAUDE.md` (detailed
+  architecture), `upstream/docs/spec/SPEC.md` and `upstream/docs/spec/EXAMPLE.png`. Behaviour,
+  wording, file formats and edge cases should match the Mac app unless Linux forces a
+  difference. When it does, note the difference here. Work on upstream in the submodule, not in
+  `../signet`, which is the user's own checkout.
+- `../signet-windows`: the Windows port (C# / WinUI 3). Its `CLAUDE.md` has a useful table of
+  platform substitutions and porting notes; its approach (translate and mirror) differs from
+  this one (compile upstream's Swift directly).
 
 ## Branches
 
-Same scheme as upstream (`../signet/BRANCHES.md`). `main` is the raw development line and
+Same scheme as upstream (`upstream/BRANCHES.md`). `main` is the raw development line and
 `release` is the current release line. Nothing is developed directly on either. Work happens on
 a feature branch named `<user>@<feature>`, cut from `main`, where user is `chrispinnock`, `claude`
 or `codex` and feature is one word or a short phrase (`claude@send-sheet`). When the feature is
@@ -52,11 +122,11 @@ and tagging happen only when asked.
 - **Wallet files must stay byte-compatible with octez-client.** Upstream keeps keys in `~/.signet`
   in octez-client's layout (`public_key_hashs`, `public_keys`, `secret_keys`), written by joining
   entries on alias, only ever appending, replacing files atomically and holding `wallet_lock`
-  while writing. It also reads `~/.tezos-client` and backups go in `~/.signet_backups`.
+  while writing. It also reads `~/.tezos-client` and backups go in `~/.signet_backups`. Since
+  `TezosClientStore` and `WalletStore` are upstream's own code compiled here, this holds as long
+  as upstream's code is not forked.
 - **The Taquito bridge is shared, never forked.** All chain access, signing, Ledger APDUs, Octez
   Connect and key encryption run in upstream's JavaScript bundle
-  (`Signet/Resources/taquito-bridge.js`, built from `TaquitoBridge/src`). A port embeds that bundle
-  unchanged and provides the native contract that `Signet/Services/TaquitoBridge.swift` installs
-  as `globalThis.__signet` (timers, `randomBytes`, `fetch`, Ledger HID exchange, storage,
-  `octezConnectEvent`) on a single engine thread. If the bridge needs a change, make it upstream.
+  (`upstream/Signet/Resources/taquito-bridge.js`, built from `TaquitoBridge/src`), embedded
+  unchanged. If the bridge needs a change, make it upstream.
 - User-facing text says "account" for a `Wallet`; "wallet" means the whole key directory and the app.
