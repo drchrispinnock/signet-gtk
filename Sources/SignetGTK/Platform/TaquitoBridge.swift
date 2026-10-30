@@ -635,7 +635,7 @@ final class TaquitoBridge: @unchecked Sendable {
     /// `bridge.log.1` once it passes `maxLogBytes` (S11).
     static let logFileURL: URL = {
         let state = ProcessInfo.processInfo.environment["XDG_STATE_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0, isDirectory: true) : nil }
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/state", isDirectory: true)
+            ?? FileManager.default.userHome.appendingPathComponent(".local/state", isDirectory: true)
         return state.appendingPathComponent("signet/bridge.log")
     }()
     static let maxLogBytes = 5_000_000

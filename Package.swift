@@ -57,6 +57,7 @@ let package = Package(
             resources: [
                 .copy("upstream/Signet/Resources/taquito-bridge.js"),
                 .copy("upstream/Signet/Resources/tzel-shadownet-producer.json"),
+                .copy("upstream/docs/images/signet-256.png"),
             ],
             swiftSettings: [
                 // Upstream reaches the C hashing through Xcode's bridging header; do the same.

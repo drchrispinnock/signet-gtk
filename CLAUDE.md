@@ -16,9 +16,21 @@ UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascrip
 same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
 (`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `pkg-config`).
 
-The development machine is reached over SSH. Its desktop is XFCE on a TigerVNC X server at
-`DISPLAY=:1` (1920x1080); run the app there and screenshot it with `import -window <id>`
-(ImageMagick) after finding the window with `xdotool search --name`.
+The development machine is reached over SSH. The user's own desktop is XFCE on a TigerVNC X
+server at `DISPLAY=:1`: put the app there only when the user wants to see it, and never send it
+clicks or keys, since the user is working on that desktop and input lands on whatever window is
+on top. Test on a private display instead:
+
+```sh
+Xvfb :99 -screen 0 1280x1000x24 -nolisten tcp &          # once
+S=<scratch dir>; HOME=$S/home XDG_CONFIG_HOME=$S/home/.config DISPLAY=:99 .build/debug/signet-gtk &
+DISPLAY=:99 xdotool search --name '^Signet$'               # window id; Return dismisses the disclaimer
+DISPLAY=:99 xdotool mousemove X Y click 1; DISPLAY=:99 import -window root shot.png
+```
+
+A scratch `HOME` keeps test runs out of the user's real `~/.signet`, `~/.signet_backups` and
+`~/.tezos-client`; a watch-only account is one line in `$HOME/.signet/public_key_hashs`
+(`[ { "name": "alias", "value": "tz1…" } ]`, mode 600 in a 700 directory).
 
 ## Commands
 
@@ -62,10 +74,33 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `LedgerHID.swift`, which still supplies `LedgerFraming` and `LedgerDevice`). Device ids are
     hidapi paths. Linux needs Ledger's udev rule (`20-hw1.rules`) for non-root access.
   - Not yet replaced: `QRCode`, `ImageLoader`, `ArtworkCache`, `Appearance`, `UpdaterService`.
-- `Sources/SignetGTK/Views` holds the GTK views, named after upstream's SwiftUI views
-  (`Views/SendSheet.swift` for `SendSheet`). Static helpers upstream's tests call (such as
-  `SendSheet.capture`) keep their names and signatures.
-- `Sources/SignetGTK/App/main.swift` is still a placeholder window.
+- `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
+  - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
+    `@MainActor` code and `Task { @MainActor … }` run inside GTK's loop. Everything UI is on the
+    main thread; C callbacks enter the main actor with `MainActor.assumeIsolated`.
+  - `Widget` (typed handle: `.as()` for a typed GTK pointer, `.opaque` for an opaque one), `UI`
+    builders, `Signals.connect` for closures, `Actions` (window actions, `win.<name>`, plain or
+    radio choices) and `MenuBuilder` (sections, items, radio items).
+  - `Tracker` is the stand-in for SwiftUI re-rendering: it runs a closure under
+    `withObservationTracking` and runs it again whenever anything `@Observable` it read changes.
+    A view's Swift object owns its trackers and is kept alive by its root widget
+    (`Widget.retain`). Rebuild only the part that changes (`setChildren`), not whole views.
+- `Sources/SignetGTK/Views` holds the GTK views, one class per upstream SwiftUI view with the same
+  name and file name (`Views/WalletHomeView.swift`), each with a `root` widget. Wording is
+  upstream's. Static helpers upstream's tests call (such as `SendSheet.capture`) keep their names
+  and signatures. `Operations` in `WalletHeaderView.swift` is upstream's `OperationsMenuItems`:
+  the burger menu, its window actions and shortcuts, and the list of sheets with their
+  `isPresenting…` flags. A sheet not ported yet shows a toast ("… is not available on Linux yet.")
+  and lowers its flag; port a sheet by presenting it there instead.
+- `Sources/SignetGTK/App`: `SignetApp` (upstream's `makeModel`, the `AdwApplication`, unique per
+  session over D-Bus like `LSMultipleInstancesProhibited`), `Style` (the CSS for looks
+  libadwaita has no class for, using its named colours so dark mode follows).
+
+Done so far: the window (`WalletHomeView` with the error line and `NodeStatusBar`), the welcome
+screen (`NoWalletsView`), the launch disclaimer, appearance, and the dashboard header
+(`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`). Below the header the dashboard still
+says it is being ported (`ActionButtonsView`, `AssetListView`, `DelegateRowView`,
+`AccountNotOnChainView`, `ActivityTabsView` are next), and no sheet is ported yet.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -90,9 +125,24 @@ avoid too:
 - `Bundle.main` holds no resources in a SwiftPM build; use `Bundle.module` under `SWIFT_PACKAGE`
   and list the file in `resources:` in `Package.swift`.
 
+- `FileManager.homeDirectoryForCurrentUser` ignores `$HOME`; upstream uses
+  `FileManager.default.userHome`, which honours an absolute `$HOME` off the Mac.
+- `UserDefaults.standard` is `$XDG_CONFIG_HOME/signet-gtk.plist` (`~/.config` by default).
+
 Known test difference: `nativeReadersUseTheBoundedPath` fails because a `URLProtocol` registered
 globally does not reach the companion session made from `.shared`'s configuration. Only the
 test's mock is affected, not real requests.
+
+## Differences from the Mac app
+
+- Wording that names the Mac: "Welcome to Signet, a Tezos Wallet." (upstream adds "for the
+  Mac"), "Generate a fresh key on this computer" ("on this Mac").
+- No menu bar: the burger menu holds the Operations items, with Ctrl in place of Cmd
+  (Ctrl+N, Ctrl+Shift+I/L/N/D, Ctrl+R, Ctrl+comma); Ctrl+Q quits. The window has a libadwaita
+  header bar for its title and controls.
+- The app forces the Adwaita icon theme: libadwaita's look assumes its symbolic icons, and other
+  desktops' themes (XFCE's) fall back to coloured ones. GTK icon names stand in for SF Symbols.
+- `AccountAvatarView` shows only the grey placeholder until `ImageLoader` is ported.
 
 ## Sibling repositories
 
