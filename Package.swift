@@ -58,6 +58,10 @@ let package = Package(
                 .copy("upstream/Signet/Resources/taquito-bridge.js"),
                 .copy("upstream/Signet/Resources/tzel-shadownet-producer.json"),
                 .copy("upstream/docs/images/signet-256.png"),
+                // The images AssetListView draws, out of the asset catalogue Xcode compiles.
+                .copy("upstream/Signet/Resources/Assets.xcassets/TezosToken.imageset/tezos-token-round.svg"),
+                .copy("upstream/Signet/Resources/Assets.xcassets/EtherlinkLogo.imageset/etherlink-avatar.svg"),
+                .copy("upstream/Signet/Resources/Assets.xcassets/ShieldLogo.imageset/shield.png"),
             ],
             swiftSettings: [
                 // Upstream reaches the C hashing through Xcode's bridging header; do the same.

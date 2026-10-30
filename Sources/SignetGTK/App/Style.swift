@@ -53,6 +53,26 @@ enum Style {
     .node-light.red { background: #ff3b30; }
     .node-host { font-weight: 500; }
 
+    /* ActionButtonsView's ActionButtonStyle: equal tiles that fill the row. */
+    button.action-tile {
+      padding: 12px 0; border-radius: 8px;
+      background: alpha(currentColor, 0.12); border: 1px solid alpha(currentColor, 0.35);
+    }
+    button.action-tile:hover { background: alpha(currentColor, 0.18); }
+    button.action-tile:active { background: alpha(currentColor, 0.25); }
+    button.action-tile label { font-weight: normal; }
+
+    /* AssetListView. */
+    .token-badge { border-radius: 999px; border: 1.5px solid alpha(currentColor, 0.55); }
+
+    /* DelegateRowView. */
+    button.delegate-row { padding: 0; }
+    .delegate-headline { font-weight: 500; }
+    .delegate-circle { border-radius: 999px; background: alpha(currentColor, 0.1); }
+
+    /* AccountNotOnChainView. */
+    .warning-circle { border-radius: 999px; background: alpha(@warning_color, 0.15); color: @warning_color; }
+
     .error-message { color: @error_color; }
     """
 

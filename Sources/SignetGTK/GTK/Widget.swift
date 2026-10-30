@@ -144,8 +144,29 @@ enum UI {
 
     static func spacer() -> Widget { vbox().expand(h: true, v: true) }
 
+    /// Takes the spare width of a row, and only the width.
+    static func hspacer() -> Widget { vbox().expand(h: true) }
+
+    /// `inner` centred in a `size`-square box (drawn round by its CSS class). The box sets its
+    /// own expansion, so the inner widget's does not spread to the rows around it.
+    static func circle(_ inner: Widget, size: Int32, classes: String...) -> Widget {
+        inner.align(h: GTK_ALIGN_CENTER, v: GTK_ALIGN_CENTER).expand(h: true, v: true)
+        let box = vbox(spacing: 0, [inner]).size(width: size, height: size).expand().align(h: GTK_ALIGN_START, v: GTK_ALIGN_CENTER)
+        for name in classes { box.classes(name) }
+        gtk_widget_set_overflow(box.pointer, GTK_OVERFLOW_HIDDEN)
+        return box
+    }
+
     static func image(icon: String, pixelSize: Int32 = 16) -> Widget {
         let image = Widget(gtk_image_new_from_icon_name(icon)!)
+        gtk_image_set_pixel_size(image.opaque, pixelSize)
+        return image
+    }
+
+    /// An image shipped with the app (`Bundle.module`), drawn `pixelSize` square; nil if missing.
+    static func resourceImage(_ name: String, _ ext: String, pixelSize: Int32) -> Widget? {
+        guard let url = Bundle.module.url(forResource: name, withExtension: ext) else { return nil }
+        let image = Widget(gtk_image_new_from_file(url.path)!)
         gtk_image_set_pixel_size(image.opaque, pixelSize)
         return image
     }
@@ -196,16 +217,18 @@ enum Signals {
     }
 
     /// Connects a signal whose handler needs nothing from its arguments (`clicked`, `released`,
-    /// `activate`, …). GLib passes more arguments than the handler declares; C callers may.
+    /// `activate`, …). Connected swapped, so the user data comes first whatever the signal's own
+    /// arguments are (`released` has three more); GLib passes more than the handler declares,
+    /// which C callers may.
     static func connect(_ instance: Widget, _ signal: String, _ action: @escaping @MainActor () -> Void) {
         let box = Unmanaged.passRetained(Box(action)).toOpaque()
-        let handler: @convention(c) (gpointer?, gpointer?) -> Void = { _, data in
+        let handler: @convention(c) (gpointer?) -> Void = { data in
             let box = Unmanaged<Box>.fromOpaque(data!).takeUnretainedValue()
             MainActor.assumeIsolated { box.action() }
         }
         g_signal_connect_data(instance.raw, signal, unsafeBitCast(handler, to: GCallback.self), box, { data, _ in
             Unmanaged<Box>.fromOpaque(data!).release()
-        }, GConnectFlags(rawValue: 0))
+        }, G_CONNECT_SWAPPED)
     }
 }
 

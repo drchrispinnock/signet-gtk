@@ -80,7 +80,11 @@ app share the module; upstream's types are `internal`, so they must). The produc
     main thread; C callbacks enter the main actor with `MainActor.assumeIsolated`.
   - `Widget` (typed handle: `.as()` for a typed GTK pointer, `.opaque` for an opaque one), `UI`
     builders, `Signals.connect` for closures, `Actions` (window actions, `win.<name>`, plain or
-    radio choices) and `MenuBuilder` (sections, items, radio items).
+    radio choices) and `MenuBuilder` (sections, items, radio items). `Signals.connect` connects
+    swapped (user data first), so one closure type fits any signal's arguments.
+  - GTK4 propagates `hexpand`/`vexpand` up to every parent that has not set its own: a centred
+    icon with `expand(v: true)` stretches the rows around it. `UI.circle` and `UI.hspacer` set
+    their expansion explicitly; do the same in new containers.
   - `Tracker` is the stand-in for SwiftUI re-rendering: it runs a closure under
     `withObservationTracking` and runs it again whenever anything `@Observable` it read changes.
     A view's Swift object owns its trackers and is kept alive by its root widget
@@ -97,10 +101,10 @@ app share the module; upstream's types are `internal`, so they must). The produc
   libadwaita has no class for, using its named colours so dark mode follows).
 
 Done so far: the window (`WalletHomeView` with the error line and `NodeStatusBar`), the welcome
-screen (`NoWalletsView`), the launch disclaimer, appearance, and the dashboard header
-(`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`). Below the header the dashboard still
-says it is being ported (`ActionButtonsView`, `AssetListView`, `DelegateRowView`,
-`AccountNotOnChainView`, `ActivityTabsView` are next), and no sheet is ported yet.
+screen (`NoWalletsView`), the launch disclaimer, appearance, and the dashboard down to the
+activity: header (`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`), `ActionButtonsView`,
+`AssetListView`, `DelegateRowView` and `AccountNotOnChainView`. `ActivityTabsView` is next; no
+sheet is ported yet.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -143,6 +147,9 @@ test's mock is affected, not real requests.
 - The app forces the Adwaita icon theme: libadwaita's look assumes its symbolic icons, and other
   desktops' themes (XFCE's) fall back to coloured ones. GTK icon names stand in for SF Symbols.
 - `AccountAvatarView` shows only the grey placeholder until `ImageLoader` is ported.
+- `AssetListView`'s tez, Etherlink and Shielded images are the SVG/PNG files from upstream's
+  asset catalogue, copied as resources. The baker's 👨‍🍳 needs a colour emoji font (Noto Color
+  Emoji); without one GTK draws a missing-glyph box.
 
 ## Sibling repositories
 

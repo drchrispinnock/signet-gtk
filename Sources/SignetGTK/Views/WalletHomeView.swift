@@ -111,21 +111,54 @@ final class WalletHomeView {
     }
 }
 
-/// The dashboard for one account: header, then the parts not ported yet.
+/// The dashboard for one account: header, action row, then the balances and delegate (or why
+/// the account has none), then the activity, which is not ported yet.
 @MainActor
 final class DashboardView {
+    let model: WalletViewModel
+    let wallet: Wallet
     let children: [Widget]
     private let identity: WalletIdentityView
     private let badge: NetworkBadgeMenu
     private let menu: AppMenuButton
+    private let actions: ActionButtonsView
+    private let balances = UI.vbox(spacing: 24)
+    private var assets: AssetListView?
+    private var delegate: DelegateRowView?
+    private var notOnChain: AccountNotOnChainView?
+    private var tracker: Tracker?
 
     init(model: WalletViewModel, wallet: Wallet) {
+        self.model = model
+        self.wallet = wallet
         identity = WalletIdentityView(model: model, wallet: wallet)
         badge = NetworkBadgeMenu(model: model)
         menu = AppMenuButton(model: model)
+        actions = ActionButtonsView(model: model)
         let header = UI.hbox(spacing: 8, [identity.root.expand(h: true), badge.root.align(v: GTK_ALIGN_START), menu.root.align(v: GTK_ALIGN_START)])
-        let pending = UI.label("Balances, actions and activity are still being ported.", classes: ["dim-label"], wrap: true)
-        children = [header, UI.separator(), pending]
+        let pending = UI.label("Activity is still being ported.", classes: ["dim-label"], wrap: true)
+        children = [header, actions.root, balances, UI.separator(), pending]
+        tracker = Tracker { [unowned self] in self.updateBalances() }
+    }
+
+    /// `if model.accountNotOnChain { AccountNotOnChainView } else { AssetListView; DelegateRowView }`
+    private func updateBalances() {
+        if model.accountNotOnChain {
+            guard notOnChain == nil else { return }
+            let view = AccountNotOnChainView(model: model, wallet: wallet)
+            notOnChain = view
+            assets = nil
+            delegate = nil
+            balances.setChildren([view.root])
+        } else {
+            guard assets == nil else { return }
+            let list = AssetListView(model: model)
+            let row = DelegateRowView(model: model)
+            assets = list
+            delegate = row
+            notOnChain = nil
+            balances.setChildren([list.root, row.root])
+        }
     }
 }
 
@@ -140,13 +173,7 @@ final class NoWalletsView {
 
     init(model: WalletViewModel) {
         self.model = model
-        let icon: Widget
-        if let url = Bundle.module.url(forResource: "signet-256", withExtension: "png") {
-            icon = Widget(gtk_image_new_from_file(url.path)!)
-            gtk_image_set_pixel_size(icon.opaque, 96)
-        } else {
-            icon = UI.image(icon: "avatar-default-symbolic", pixelSize: 96)
-        }
+        let icon = UI.resourceImage("signet-256", "png", pixelSize: 96) ?? UI.image(icon: "avatar-default-symbolic", pixelSize: 96)
         // Upstream: "…a Tezos Wallet for the Mac."
         let title = UI.label("Welcome to Signet, a Tezos Wallet.", classes: ["welcome-title"], wrap: true, xalign: 0.5)
         let prompt = UI.label("How would you like to start?", classes: ["dim-label"], xalign: 0.5)
