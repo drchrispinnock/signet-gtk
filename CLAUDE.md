@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Linux port of **Signet**, the macOS Tezos wallet written in SwiftUI. The repository holds only
+**signet-gtk**: a port of **Signet**, the macOS Tezos wallet written in SwiftUI, to Linux first and
+then the BSDs. Linux is the primary target. FreeBSD should follow, since Swift has a FreeBSD port
+and preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
+there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: use hidapi for
+Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or syscalls
+outside a small platform layer. The repository holds only
 `README.md` and `LICENSE` (MIT) so far. Update this file with the commands and layout once they exist.
 
 Stack: Swift 6 on Linux (installed with swiftly), GTK4 + libadwaita for the UI, swift-crypto in
