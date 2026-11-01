@@ -115,6 +115,8 @@ enum Style {
     button.suggestion { padding: 4px 6px; font-weight: normal; }
     button.suggestion label { font-weight: normal; }
     textview.phrase-editor { border-radius: 6px; border: 1px solid alpha(currentColor, 0.3); padding: 4px; }
+    .dapp-icon { border-radius: 22%; }
+    .dapp-icon-placeholder { background: alpha(currentColor, 0.1); }
     .qr-box { padding: 12px; border-radius: 12px; background: white; border: 1px solid alpha(currentColor, 0.25); }
     .monospace text, .monospace { font-family: monospace; }
 

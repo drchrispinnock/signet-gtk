@@ -70,6 +70,7 @@ final class WalletHomeView {
             self.errorLabel.isVisible = message != nil
         })
         trackers.append(Tracker { [unowned self] in self.presentSheets() })
+        trackers.append(Tracker { [unowned self] in self.presentDAppRequest() })
 
         // `.task` upstream: start watching the nodes and load the account.
         model.nodeMonitor.start()
@@ -125,6 +126,22 @@ final class WalletHomeView {
         }
     }
 
+    private var dappRequest: DAppRequestSheet?
+
+    /// `.sheet(item: model.dapps.current)`: the request at the front of the queue, replaced when
+    /// the queue moves on.
+    private func presentDAppRequest() {
+        let current = model.dapps.current
+        if let shown = dappRequest, shown.request.id == current?.id { return }
+        dappRequest?.dismiss()
+        dappRequest = nil
+        guard let current else { return }
+        let view = DAppRequestSheet(model: model, request: current)
+        dappRequest = view
+        view.onClosed = { [weak self, weak view] in if self?.dappRequest === view { self?.dappRequest = nil } }
+        view.present(over: root)
+    }
+
     private func presentSettings() {
         guard presented["settings"] == nil else { return }
         let view = SettingsView(model: model)
@@ -144,6 +161,7 @@ final class WalletHomeView {
         case "prove-possession": ProofOfPossessionSheet(model: model)
         case "import-account": ImportAccountSheet(model: model)
         case "faucet": FaucetSheet(model: model)
+        case "dapps": ConnectDAppSheet(model: model)
         case "sign-multisig": SignMultisigSheet(model: model)
         case "submit-multisig": SubmitMultisigSheet(model: model)
         case "create-multisig": CreateMultisigSheet(model: model)
