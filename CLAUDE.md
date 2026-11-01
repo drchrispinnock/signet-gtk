@@ -96,22 +96,40 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `withObservationTracking` and runs it again whenever anything `@Observable` it read changes.
     A view's Swift object owns its trackers and is kept alive by its root widget
     (`Widget.retain`). Rebuild only the part that changes (`setChildren`), not whole views.
+  - A widget taken out of its box loses its last reference and is freed. `setChildren`,
+    `Form.setRows` and `Form.append` hold a reference while they move a widget, so a widget kept
+    in a property can be put back after a rebuild; anything else that re-parents must do the same.
+  - `Sheet` is SwiftUI's `.sheet`: an `AdwDialog` (sized to its content as it changes, scrolling
+    when taller than the window, narrowed to fit a narrow window) with upstream's layout: title,
+    content, red error line, a status line with spinner (`setBusy`), and the buttons
+    (`button(_:role:isDefault:)`, `cancelButton()`). `closed()` is where a sheet wipes passwords
+    and keys from its fields. `Form` is `Form { }.formStyle(.grouped)`: a boxed list of
+    libadwaita rows (`entry`, `password`, `toggle`, `picker`, `labeled`, `stacked` for a value
+    with controls beneath, `note` for the text upstream puts inside forms).
 - `Sources/SignetGTK/Views` holds the GTK views, one class per upstream SwiftUI view with the same
-  name and file name (`Views/WalletHomeView.swift`), each with a `root` widget. Wording is
-  upstream's. Static helpers upstream's tests call (such as `SendSheet.capture`) keep their names
-  and signatures. `Operations` in `WalletHeaderView.swift` is upstream's `OperationsMenuItems`:
-  the burger menu, its window actions and shortcuts, and the list of sheets with their
-  `isPresenting…` flags. A sheet not ported yet shows a toast ("… is not available on Linux yet.")
-  and lowers its flag; port a sheet by presenting it there instead.
+  name and file name (`Views/WalletHomeView.swift`), each with a `root` widget (a sheet is a
+  `Sheet` subclass). Wording is upstream's. Static helpers upstream's tests call (such as
+  `SendSheet.capture`) keep their names and signatures. `Operations` in `WalletHeaderView.swift`
+  is upstream's `OperationsMenuItems`: the burger menu, its window actions and shortcuts, and the
+  list of sheets with their `isPresenting…` flags. `WalletHomeView.makeSheet` builds the sheet
+  for a flag; a flag with no sheet there shows a toast ("… is not available on Linux yet.") and
+  is lowered. The dApp request sheet follows `model.dapps.current`; Settings has no model flag
+  and is opened through `Operations.presentSettings`.
 - `Sources/SignetGTK/App`: `SignetApp` (upstream's `makeModel`, the `AdwApplication`, unique per
   session over D-Bus like `LSMultipleInstancesProhibited`), `Style` (the CSS for looks
   libadwaita has no class for, using its named colours so dark mode follows).
 
-Done so far: the window (`WalletHomeView` with the error line and `NodeStatusBar`), the welcome
-screen (`NoWalletsView`), the launch disclaimer, appearance, and the dashboard down to the
-activity: header (`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`), `ActionButtonsView`,
-`AssetListView`, `DelegateRowView`, `AccountNotOnChainView` and `ActivityTabsView` (without
-the Etherlink `LayerToggles`).
+Done so far: the window, the welcome screen, the launch disclaimer, the dashboard
+(`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`, `ActionButtonsView`, `AssetListView`,
+`DelegateRowView`, `AccountNotOnChainView`, `ActivityTabsView`), and every layer 1 sheet: Create,
+Import, Connect Ledger, Rename, Export secret key, Proof of possession, Add address, Remember key,
+Forget, Send, Receive, Staking, Baking, Governance (Tezos tab), Faucet, Buy, Networks, Settings,
+the four multisig sheets, Connect to a dApp and the dApp request sheet. Send, Staking (delegate),
+Faucet, Import, Create and the multisig sheets have been run against Shadownet.
+Not ported, on purpose for now: everything Etherlink (`BridgeSheet`, `ChainSidePicker` and the
+Etherlink side of Send and Receive, `LayerToggles`, `EtherlinkGovernanceView`, the Layer 2 rows
+of Networks) and everything shielded (TzEL: `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`,
+`ShieldedAddressSheet`, `ShieldSettingsSheet`); their menu items still show the toast.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -153,6 +171,15 @@ test's mock is affected, not real requests.
   header bar for its title and controls.
 - The app forces the Adwaita icon theme: libadwaita's look assumes its symbolic icons, and other
   desktops' themes (XFCE's) fall back to coloured ones. GTK icon names stand in for SF Symbols.
+- Wording that names the Mac elsewhere says "this computer" (Forget account, Remember key).
+- Settings is a sheet over the window rather than a window of its own, and has no Updates
+  section (Signet is updated by whatever installed it, not Sparkle). "Show in Finder" is "Open
+  Folder", which opens the folder in the file manager.
+- Buy opens a widget provider (Mt Pelerin) in the browser as a direct link, address pre-filled
+  and pre-validated as on the Mac; the in-app `BuyWebView` is not ported (WebKitGTK could do it).
+- `signet://` pairing links are not handled yet (needs a .desktop file and `G_APPLICATION_HANDLES_OPEN`).
+- Preferences are written at once (`UserDefaults.synchronize()`): swift-corelibs-foundation only
+  flushes them at a clean exit otherwise.
 - The window's content scrolls as a whole; the activity lists grow inside it rather than
   scrolling on their own.
 - `AssetListView`'s tez, Etherlink and Shielded images are the SVG/PNG files from upstream's

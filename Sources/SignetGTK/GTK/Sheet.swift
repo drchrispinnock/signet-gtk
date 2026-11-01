@@ -121,7 +121,10 @@ class Sheet {
         case .normal, .cancel: []
         }
         let button = UI.button(title, classes: classes, action: action)
-        if isDefault { adw_dialog_set_default_widget(dialog.as(), button.pointer) }
+        if isDefault {
+            defaultButton = button
+            adw_dialog_set_default_widget(dialog.as(), button.pointer)
+        }
         return button
     }
 
@@ -130,7 +133,16 @@ class Sheet {
         button(title, role: .cancel) { [weak self] in self?.dismiss() }
     }
 
-    func setButtons(_ list: [Widget]) { buttons.setChildren(list) }
+    private var defaultButton: Widget?
+
+    /// Moving the buttons takes them out of the dialog for a moment, which clears its default
+    /// widget; it is set again afterwards.
+    func setButtons(_ list: [Widget]) {
+        buttons.setChildren(list)
+        if let defaultButton, list.contains(where: { $0.pointer == defaultButton.pointer }) {
+            adw_dialog_set_default_widget(dialog.as(), defaultButton.pointer)
+        }
+    }
 
     func focus(_ widget: Widget) { adw_dialog_set_focus(dialog.as(), widget.pointer) }
 

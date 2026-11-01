@@ -35,10 +35,12 @@ final class SettingsView: Sheet {
             guard let name = adw_toggle_group_get_active_name(self.appearancePicker.opaque),
                   let choice = Appearance(rawValue: String(cString: name)) else { return }
             UserDefaults.standard.set(choice.rawValue, forKey: Appearance.key)
+            UserDefaults.standard.synchronize()   // written now, not only at a clean exit
             choice.apply()
         }
         disclaimerToggle = Form.toggle("Show the disclaimer at launch", isOn: Disclaimer.isWanted) { [unowned self] in
             UserDefaults.standard.set(Form.isOn(self.disclaimerToggle), forKey: Disclaimer.key)
+            UserDefaults.standard.synchronize()   // written now, not only at a clean exit
         }
         let appearance = Form.group([Form.labeled("Appearance", content: appearancePicker), disclaimerToggle])
 
@@ -88,6 +90,7 @@ final class SettingsView: Sheet {
         let armed = UserDefaults.standard.bool(forKey: DeveloperSettings.dappDiagnosticsKey)
         diagnosticsToggle = Form.toggle("Verbose dApp log on the next launch", isOn: armed) { [unowned self] in
             UserDefaults.standard.set(Form.isOn(self.diagnosticsToggle), forKey: DeveloperSettings.dappDiagnosticsKey)
+            UserDefaults.standard.synchronize()   // written now, not only at a clean exit
         }
         diagnosticsNote = Form.note("Verbose dApp logging is on for this run; it switches itself off at the next launch.", style: "warning-text").row
         let developer = section(title: "Developer", rows: [diagnosticsToggle, diagnosticsNote],

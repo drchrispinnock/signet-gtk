@@ -11,11 +11,21 @@ enum Form {
         let list = Widget(gtk_list_box_new()!)
         gtk_list_box_set_selection_mode(list.opaque, GTK_SELECTION_NONE)
         list.classes("boxed-list")
-        for row in rows { gtk_list_box_append(list.opaque, row.pointer) }
+        for row in rows { append(row, to: list) }
         return list
     }
 
-    static func append(_ row: Widget, to group: Widget) { gtk_list_box_append(group.opaque, row.pointer) }
+    /// Appends a row, taking it out of the group it was in first (a row kept across rebuilds).
+    static func append(_ row: Widget, to group: Widget) {
+        if let parent = gtk_widget_get_parent(row.pointer) {
+            g_object_ref(row.raw)
+            gtk_list_box_remove(OpaquePointer(parent), row.pointer)
+            gtk_list_box_append(group.opaque, row.pointer)
+            g_object_unref(row.raw)
+        } else {
+            gtk_list_box_append(group.opaque, row.pointer)
+        }
+    }
 
     /// Replaces a group's rows.
     static func setRows(_ group: Widget, _ rows: [Widget]) {
