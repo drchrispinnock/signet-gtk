@@ -101,6 +101,15 @@ enum Style {
     .tile-chip { padding: 2px 6px; border-radius: 999px; background: alpha(black, 0.6); color: white; }
     button.menu-item { font-weight: normal; }
 
+    /* Sheets. */
+    .banner-box { padding: 12px; border-radius: 8px; }
+    .banner-box.warning { color: @warning_color; background: alpha(@warning_color, 0.12); }
+    .banner-box.error { color: @error_color; background: alpha(@error_color, 0.12); }
+    .banner-box.info { background: alpha(@accent_bg_color, 0.1); }
+    .warning-text { color: @warning_color; }
+    .error-text { color: @error_color; }
+    .monospace text, .monospace { font-family: monospace; }
+
     .error-message { color: @error_color; }
     """
 

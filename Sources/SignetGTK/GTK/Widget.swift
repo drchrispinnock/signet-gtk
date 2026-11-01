@@ -206,6 +206,29 @@ enum UI {
         gdk_clipboard_set_text(gtk_widget_get_clipboard(widget.pointer), text)
     }
 
+    /// A borderless Copy button whose icon turns to a tick for a moment after copying.
+    static func copyButton(tooltip: String = "Copy to clipboard", _ value: @escaping @MainActor () -> String) -> Widget {
+        let button = iconButton("edit-copy-symbolic", tooltip: tooltip) {}
+        Signals.connect(button, "clicked") {
+            copyToClipboard(value(), from: button)
+            gtk_button_set_icon_name(button.as(), "object-select-symbolic")
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                gtk_button_set_icon_name(button.as(), "edit-copy-symbolic")
+            }
+        }
+        return button
+    }
+
+    /// `path` with the home directory written `~`, as `abbreviatingWithTildeInPath`.
+    static func tilde(_ url: URL) -> String {
+        let path = url.path(percentEncoded: false)
+        let home = FileManager.default.userHome.path(percentEncoded: false)
+        let trimmed = home.hasSuffix("/") ? String(home.dropLast()) : home
+        guard !trimmed.isEmpty, path == trimmed || path.hasPrefix(trimmed + "/") else { return path }
+        return "~" + path.dropFirst(trimmed.count)
+    }
+
     /// Opens `url` in the user's browser (`NSWorkspace.shared.open` upstream).
     static func open(_ url: URL, from widget: Widget) {
         let launcher = gtk_uri_launcher_new(url.absoluteString)!

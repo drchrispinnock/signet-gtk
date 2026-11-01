@@ -96,12 +96,44 @@ final class WalletHomeView {
         }
     }
 
-    /// Upstream presents a sheet for each `isPresenting…` flag. The sheets are not ported yet:
-    /// say so and lower the flag, so the menu item can be used again.
+    /// The sheets on screen, by their action name.
+    private var presented: [String: Sheet] = [:]
+
+    /// Upstream presents a sheet for each `isPresenting…` flag: the same here, and a sheet not
+    /// ported yet says so and lowers its flag, so the menu item can be used again. A sheet whose
+    /// flag the model lowers is closed; one the user closes lowers its flag.
     private func presentSheets() {
-        for sheet in Operations.sheets where model[keyPath: sheet.flag] {
-            model[keyPath: sheet.flag] = false
-            showToast("\(sheet.title) is not available on Linux yet.")
+        for sheet in Operations.sheets {
+            let wanted = model[keyPath: sheet.flag]
+            if let shown = presented[sheet.action] {
+                if !wanted { shown.dismiss() }
+                continue
+            }
+            guard wanted else { continue }
+            guard let view = makeSheet(sheet.action) else {
+                model[keyPath: sheet.flag] = false
+                showToast("\(sheet.title) is not available on Linux yet.")
+                continue
+            }
+            presented[sheet.action] = view
+            view.onClosed = { [weak self, model] in
+                self?.presented[sheet.action] = nil
+                if model[keyPath: sheet.flag] { model[keyPath: sheet.flag] = false }
+            }
+            view.present(over: root)
+        }
+    }
+
+    private func makeSheet(_ action: String) -> Sheet? {
+        switch action {
+        case "create-account": CreateWalletSheet(model: model)
+        case "rename-account": RenameWalletSheet(model: model)
+        case "add-address": AddAddressSheet(model: model)
+        case "forget-account": ForgetAccountSheet(model: model)
+        case "export-key": ExportKeySheet(model: model)
+        case "remember-key": RememberKeySheet(model: model)
+        case "prove-possession": ProofOfPossessionSheet(model: model)
+        default: nil
         }
     }
 
