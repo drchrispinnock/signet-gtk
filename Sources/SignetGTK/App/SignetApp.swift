@@ -56,7 +56,11 @@ enum SignetApp {
 
         MainLoop.attachMainQueue()
         let app = Widget(adw_application_new("org.tezos.signet", G_APPLICATION_DEFAULT_FLAGS)!)
-        Signals.connect(app, "startup") { Style.install() }
+        Signals.connect(app, "startup") {
+            Style.install()
+            // The icon the package installs under the application id.
+            gtk_window_set_default_icon_name("org.tezos.signet")
+        }
         Signals.connect(app, "activate") { activate(app) }
         return g_application_run(app.as(), CommandLine.argc, CommandLine.unsafeArgv)
     }

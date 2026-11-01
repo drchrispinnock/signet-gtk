@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Signet
+GenericName=Tezos Wallet
+Comment=A Tezos wallet: accounts, Ledger, staking, multisig and dApps
+Exec=signet-gtk
+Icon=org.tezos.signet
+Terminal=false
+Categories=Office;Finance;GTK;
+Keywords=Tezos;wallet;crypto;tez;Ledger;
+StartupNotify=true
+StartupWMClass=signet-gtk
