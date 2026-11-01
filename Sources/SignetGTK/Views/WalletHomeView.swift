@@ -133,6 +133,7 @@ final class WalletHomeView {
         case "export-key": ExportKeySheet(model: model)
         case "remember-key": RememberKeySheet(model: model)
         case "prove-possession": ProofOfPossessionSheet(model: model)
+        case "import-account": ImportAccountSheet(model: model)
         case "faucet": FaucetSheet(model: model)
         case "staking": StakingSheet(model: model)
         case "send": model.selectedWallet.map { SendSheet(model: model, sender: $0) }

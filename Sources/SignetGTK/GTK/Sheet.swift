@@ -36,7 +36,12 @@ class Sheet {
         let bottom = UI.hbox(spacing: 8, [status, UI.hspacer(), buttons])
         // `.padding(20).frame(width:)`: the width includes the padding.
         let column = UI.vbox(spacing: 16, [content, errorLabel, bottom]).margins(20).size(width: width - 40)
-        adw_dialog_set_child(dialog.as(), column.pointer)
+        // A sheet taller than the window scrolls rather than being cut off.
+        let scroller = Widget(gtk_scrolled_window_new()!)
+        gtk_scrolled_window_set_policy(scroller.opaque, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+        gtk_scrolled_window_set_propagate_natural_height(scroller.opaque, 1)
+        gtk_scrolled_window_set_child(scroller.opaque, column.pointer)
+        adw_dialog_set_child(dialog.as(), scroller.pointer)
         dialog.retain(self, key: "signet-sheet")
         Signals.connect(dialog, "closed") { [weak self] in
             guard let self else { return }

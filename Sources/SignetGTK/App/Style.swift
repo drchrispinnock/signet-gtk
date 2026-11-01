@@ -114,6 +114,7 @@ enum Style {
     .unverified-tag { color: @warning_color; background: alpha(@warning_color, 0.15); }
     button.suggestion { padding: 4px 6px; font-weight: normal; }
     button.suggestion label { font-weight: normal; }
+    textview.phrase-editor { border-radius: 6px; border: 1px solid alpha(currentColor, 0.3); padding: 4px; }
     .qr-box { padding: 12px; border-radius: 12px; background: white; border: 1px solid alpha(currentColor, 0.25); }
     .monospace text, .monospace { font-family: monospace; }
 
