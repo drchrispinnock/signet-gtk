@@ -19,8 +19,12 @@ enum Form {
 
     /// Replaces a group's rows.
     static func setRows(_ group: Widget, _ rows: [Widget]) {
+        for row in rows { g_object_ref(row.raw) }   // as `Widget.setChildren`
         gtk_list_box_remove_all(group.opaque)
-        for row in rows { gtk_list_box_append(group.opaque, row.pointer) }
+        for row in rows {
+            gtk_list_box_append(group.opaque, row.pointer)
+            g_object_unref(row.raw)
+        }
     }
 
     // MARK: Text
@@ -119,8 +123,8 @@ enum Form {
     // MARK: Read-only rows
 
     /// `LabeledContent(title, value:)`: the title at the start, the value at the end.
-    static func labeled(_ title: String, value: String, monospaced: Bool = false) -> (row: Widget, value: Widget) {
-        let label = UI.label(value, classes: monospaced ? ["address"] : [], wrap: true, xalign: 1)
+    static func labeled(_ title: String, value: String, monospaced: Bool = false, wrap: Bool = false) -> (row: Widget, value: Widget) {
+        let label = UI.label(value, classes: monospaced ? ["address"] : [], wrap: wrap, xalign: 1)
         gtk_label_set_selectable(label.opaque, 1)
         return (labeled(title, content: label), label)
     }
@@ -147,6 +151,7 @@ enum Form {
     static func row(_ child: Widget) -> Widget {
         let row = Widget(gtk_list_box_row_new()!)
         gtk_list_box_row_set_activatable(row.as(), 0)
+        gtk_widget_set_focusable(row.pointer, 0)
         gtk_list_box_row_set_child(row.as(), child.margins(top: 10, bottom: 10, start: 12, end: 12).pointer)
         return row
     }

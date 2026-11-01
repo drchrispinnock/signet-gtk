@@ -28,11 +28,14 @@ class Sheet {
         self.model = model
         dialog = Widget(adw_dialog_new()!)
         adw_dialog_set_content_width(dialog.as(), width)
+        // Fit the content as it changes from step to step, smaller as well as larger.
+        adw_dialog_set_follows_content_size(dialog.as(), 1)
         errorLabel.isVisible = false
         status.setChildren([spinner, statusText])
         status.isVisible = false
         let bottom = UI.hbox(spacing: 8, [status, UI.hspacer(), buttons])
-        let column = UI.vbox(spacing: 16, [content, errorLabel, bottom]).margins(20)
+        // `.padding(20).frame(width:)`: the width includes the padding.
+        let column = UI.vbox(spacing: 16, [content, errorLabel, bottom]).margins(20).size(width: width - 40)
         adw_dialog_set_child(dialog.as(), column.pointer)
         dialog.retain(self, key: "signet-sheet")
         Signals.connect(dialog, "closed") { [weak self] in
@@ -47,6 +50,10 @@ class Sheet {
 
     func present(over parent: Widget) {
         adw_dialog_present(dialog.as(), parent.pointer)
+        // With no field focused, Return still reaches the default button.
+        if adw_dialog_get_focus(dialog.as()) == nil, let button = adw_dialog_get_default_widget(dialog.as()) {
+            adw_dialog_set_focus(dialog.as(), button)
+        }
     }
 
     /// `@Environment(\.dismiss)`.

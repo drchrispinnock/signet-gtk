@@ -108,6 +108,12 @@ enum Style {
     .banner-box.info { background: alpha(@accent_bg_color, 0.1); }
     .warning-text { color: @warning_color; }
     .error-text { color: @error_color; }
+    .tezos-blue { color: @tezos_blue; }
+    .success-icon { color: @success_color; }
+    .verified-tag { color: @success_color; background: alpha(@success_color, 0.15); }
+    .unverified-tag { color: @warning_color; background: alpha(@warning_color, 0.15); }
+    button.suggestion { padding: 4px 6px; font-weight: normal; }
+    button.suggestion label { font-weight: normal; }
     .qr-box { padding: 12px; border-radius: 12px; background: white; border: 1px solid alpha(currentColor, 0.25); }
     .monospace text, .monospace { font-family: monospace; }
 

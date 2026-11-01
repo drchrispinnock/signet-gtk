@@ -131,7 +131,7 @@ final class TransactionRowView {
     let transaction: TezosTransaction
     let root: Widget
     private let headlineLabel = UI.label(classes: ["transaction-headline"])
-    private let verified = UI.image(icon: "emblem-ok-symbolic", pixelSize: 12).classes("verified")
+    private let verified = UI.image(icon: "object-select-symbolic", pixelSize: 12).classes("verified")
     private let subtitleLabel = UI.label(classes: ["dim-label", "caption"])
     private let badge = UI.image(icon: "go-up-symbolic", pixelSize: 9)
     private var tracker: Tracker?

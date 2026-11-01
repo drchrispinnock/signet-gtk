@@ -87,10 +87,15 @@ struct Widget {
 
     func append(_ child: Widget) { gtk_box_append(self.as(), child.pointer) }
 
-    /// Replaces a box's children.
+    /// Replaces a box's children. A child may be one the box already holds: each is referenced
+    /// while the box is emptied, or removing it would free it.
     func setChildren(_ children: [Widget]) {
+        for child in children { g_object_ref(child.raw) }
         removeAllChildren()
-        for child in children { append(child) }
+        for child in children {
+            append(child)
+            g_object_unref(child.raw)
+        }
     }
 
     // MARK: Keeping Swift objects alive
