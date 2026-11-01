@@ -112,7 +112,7 @@ final class WalletHomeView {
 }
 
 /// The dashboard for one account: header, action row, then the balances and delegate (or why
-/// the account has none), then the activity, which is not ported yet.
+/// the account has none), then the activity.
 @MainActor
 final class DashboardView {
     let model: WalletViewModel
@@ -122,6 +122,7 @@ final class DashboardView {
     private let badge: NetworkBadgeMenu
     private let menu: AppMenuButton
     private let actions: ActionButtonsView
+    private let activity: ActivityTabsView
     private let balances = UI.vbox(spacing: 24)
     private var assets: AssetListView?
     private var delegate: DelegateRowView?
@@ -136,8 +137,8 @@ final class DashboardView {
         menu = AppMenuButton(model: model)
         actions = ActionButtonsView(model: model)
         let header = UI.hbox(spacing: 8, [identity.root.expand(h: true), badge.root.align(v: GTK_ALIGN_START), menu.root.align(v: GTK_ALIGN_START)])
-        let pending = UI.label("Activity is still being ported.", classes: ["dim-label"], wrap: true)
-        children = [header, actions.root, balances, UI.separator(), pending]
+        activity = ActivityTabsView(model: model)
+        children = [header, actions.root, balances, UI.separator(), activity.root]
         tracker = Tracker { [unowned self] in self.updateBalances() }
     }
 

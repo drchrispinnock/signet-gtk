@@ -14,7 +14,8 @@ syscalls outside `Sources/SignetGTK/Platform`.
 Stack: Swift 6 (installed with swiftly, `~/.local/share/swiftly/bin`), GTK4 + libadwaita for the
 UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the
 same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
-(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `pkg-config`).
+(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `libwebp-dev`,
+`pkg-config`).
 
 The development machine is reached over SSH. The user's own desktop is XFCE on a TigerVNC X
 server at `DISPLAY=:1`: put the app there only when the user wants to see it, and never send it
@@ -73,7 +74,11 @@ app share the module; upstream's types are `internal`, so they must). The produc
   - `LedgerHID+hidapi.swift`: hidapi in place of IOKit (the name avoids clashing with upstream's
     `LedgerHID.swift`, which still supplies `LedgerFraming` and `LedgerDevice`). Device ids are
     hidapi paths. Linux needs Ledger's udev rule (`20-hw1.rules`) for non-root access.
-  - Not yet replaced: `QRCode`, `ImageLoader`, `ArtworkCache`, `Appearance`, `UpdaterService`.
+  - `ImageLoader.swift` and `ArtworkCache.swift`: upstream's, with `PlatformImage` (a
+    GdkTexture, decoded and downsampled by gdk-pixbuf, WebP by libwebp since TzKT's avatars are
+    WebP and gdk-pixbuf rarely has a WebP loader) in place of `NSImage`; the cache is
+    `$XDG_CACHE_HOME/signet/artwork`. `Views/RemoteImage.swift` draws one.
+  - Not yet replaced: `QRCode`, `UpdaterService`.
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
     `@MainActor` code and `Task { @MainActor … }` run inside GTK's loop. Everything UI is on the
@@ -103,8 +108,8 @@ app share the module; upstream's types are `internal`, so they must). The produc
 Done so far: the window (`WalletHomeView` with the error line and `NodeStatusBar`), the welcome
 screen (`NoWalletsView`), the launch disclaimer, appearance, and the dashboard down to the
 activity: header (`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`), `ActionButtonsView`,
-`AssetListView`, `DelegateRowView` and `AccountNotOnChainView`. `ActivityTabsView` is next; no
-sheet is ported yet.
+`AssetListView`, `DelegateRowView`, `AccountNotOnChainView` and `ActivityTabsView` (without
+the Etherlink `LayerToggles`).
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -146,7 +151,8 @@ test's mock is affected, not real requests.
   header bar for its title and controls.
 - The app forces the Adwaita icon theme: libadwaita's look assumes its symbolic icons, and other
   desktops' themes (XFCE's) fall back to coloured ones. GTK icon names stand in for SF Symbols.
-- `AccountAvatarView` shows only the grey placeholder until `ImageLoader` is ported.
+- The window's content scrolls as a whole; the activity lists grow inside it rather than
+  scrolling on their own.
 - `AssetListView`'s tez, Etherlink and Shielded images are the SVG/PNG files from upstream's
   asset catalogue, copied as resources. The baker's 👨‍🍳 needs a colour emoji font (Noto Color
   Emoji); without one GTK draws a missing-glyph box.

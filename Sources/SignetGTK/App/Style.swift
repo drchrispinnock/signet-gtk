@@ -73,6 +73,34 @@ enum Style {
     /* AccountNotOnChainView. */
     .warning-circle { border-radius: 999px; background: alpha(@warning_color, 0.15); color: @warning_color; }
 
+    /* ActivityTabsView. */
+    .round-image { border-radius: 999px; }
+    .transaction-row { padding: 8px 4px; border-radius: 8px; }
+    .transaction-row:hover { background: alpha(currentColor, 0.08); }
+    .transaction-headline { font-weight: 500; }
+    .transaction-amount { font-weight: 500; }
+    .transaction-amount.incoming { color: @success_color; }
+    .verified { color: @success_color; }
+    .failed-tag {
+      padding: 1px 5px; border-radius: 999px; font-size: x-small; font-weight: 600;
+      color: @error_color; background: alpha(@error_color, 0.15);
+    }
+    .direction-badge { border-radius: 999px; color: white; border: 1.5px solid @window_bg_color; }
+    .direction-badge.green { background: #34c759; }
+    .direction-badge.orange { background: #ff9500; }
+    .direction-badge.blue { background: #007aff; }
+    .direction-badge.grey { background: #8e8e93; }
+    .standard-tag {
+      padding: 1px 5px; border-radius: 999px; font-size: x-small; font-weight: 600;
+      background: alpha(currentColor, 0.1);
+    }
+    .token-placeholder { border-radius: 999px; background: alpha(currentColor, 0.1); }
+    .portfolio-note { color: @warning_color; }
+    .nft-tile { border-radius: 10px; border: 1px solid alpha(currentColor, 0.25); }
+    .nft-placeholder { background: alpha(currentColor, 0.1); }
+    .tile-chip { padding: 2px 6px; border-radius: 999px; background: alpha(black, 0.6); color: white; }
+    button.menu-item { font-weight: normal; }
+
     .error-message { color: @error_color; }
     """
 

@@ -205,6 +205,47 @@ enum UI {
     static func copyToClipboard(_ text: String, from widget: Widget) {
         gdk_clipboard_set_text(gtk_widget_get_clipboard(widget.pointer), text)
     }
+
+    /// Opens `url` in the user's browser (`NSWorkspace.shared.open` upstream).
+    static func open(_ url: URL, from widget: Widget) {
+        let launcher = gtk_uri_launcher_new(url.absoluteString)!
+        let window = gtk_widget_get_root(widget.pointer).map { UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWindow.self) }
+        gtk_uri_launcher_launch(launcher, window, nil, { source, result, _ in
+            gtk_uri_launcher_launch_finish(OpaquePointer(source), result, nil)
+            g_object_unref(source)
+        }, nil)
+    }
+
+    /// A menu of `items` that opens where the widget is right-clicked (`.contextMenu` upstream).
+    static func contextMenu(_ widget: Widget, _ items: [(String, @MainActor () -> Void)]) {
+        let popover = Widget(gtk_popover_new()!)
+        let list = vbox(spacing: 0)
+        for (title, action) in items {
+            let item = button(title, classes: ["flat", "menu-item"]) {
+                gtk_popover_popdown(popover.as())
+                action()
+            }
+            gtk_widget_set_halign(gtk_button_get_child(item.as()), GTK_ALIGN_START)
+            list.append(item)
+        }
+        gtk_popover_set_child(popover.as(), list.pointer)
+        gtk_popover_set_has_arrow(popover.as(), 0)
+        gtk_widget_set_halign(popover.pointer, GTK_ALIGN_START)
+        gtk_widget_set_parent(popover.pointer, widget.pointer)
+        // A popover parented by hand must be unparented before its parent goes.
+        Signals.connect(widget, "destroy") { gtk_widget_unparent(popover.pointer) }
+
+        let gesture = gtk_gesture_click_new()!
+        gtk_gesture_single_set_button(gesture, 3)   // GDK_BUTTON_SECONDARY
+        let handler: @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { _, _, x, y, data in
+            var rect = GdkRectangle(x: Int32(x), y: Int32(y), width: 1, height: 1)
+            let popover = data!.assumingMemoryBound(to: GtkPopover.self)
+            gtk_popover_set_pointing_to(popover, &rect)
+            gtk_popover_popup(popover)
+        }
+        g_signal_connect_data(UnsafeMutableRawPointer(gesture), "pressed", unsafeBitCast(handler, to: GCallback.self), popover.raw, nil, GConnectFlags(rawValue: 0))
+        gtk_widget_add_controller(widget.pointer, gesture)
+    }
 }
 
 // MARK: - Signals

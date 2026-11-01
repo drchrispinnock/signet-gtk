@@ -43,6 +43,9 @@ let package = Package(
                        providers: [.apt(["libjavascriptcoregtk-6.0-dev"])]),
         .systemLibrary(name: "CHidapi", path: "Sources/CHidapi", pkgConfig: "hidapi-hidraw",
                        providers: [.apt(["libhidapi-dev"])]),
+        // WebP, which gdk-pixbuf reads only with a loader most systems lack: TzKT's avatars are WebP.
+        .systemLibrary(name: "CWebP", path: "Sources/CWebP", pkgConfig: "libwebp",
+                       providers: [.apt(["libwebp-dev"])]),
         .systemLibrary(name: "CAdwaita", path: "Sources/CAdwaita", pkgConfig: "libadwaita-1",
                        providers: [.apt(["libadwaita-1-dev"])]),
         // Upstream's Models, Services and ViewModels compiled as they are, plus the GTK app and
@@ -50,7 +53,7 @@ let package = Package(
         // as on the Mac, so upstream's `@testable import Signet` tests run here unchanged.
         .executableTarget(
             name: "Signet",
-            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CAdwaita", .product(name: "Crypto", package: "swift-crypto")],
+            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", .product(name: "Crypto", package: "swift-crypto")],
             path: ".",
             exclude: macOnly,
             sources: ["upstream/Signet/Models", "upstream/Signet/Services", "upstream/Signet/ViewModels", "Sources/SignetGTK"],
