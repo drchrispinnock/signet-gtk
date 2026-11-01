@@ -53,16 +53,28 @@ under the toolchain's `lldb` to get one.
 
 ## Packaging
 
-`packaging/deb/build-deb.sh` makes `dist/signet-gtk_<version>_<arch>.deb` with `dpkg-deb` alone (no
-fakeroot or debhelper): a release build with `--static-swift-stdlib`, so the package needs no
-Swift toolchain, installed as `/usr/lib/signet-gtk/signet-gtk` with `signet-gtk_Signet.bundle`
-beside it (where `Bundle.module` looks), `/usr/bin/signet-gtk` a symlink to it, plus the desktop
-entry and Ledger udev rule from `packaging/linux` and upstream's 256 px icon. The version defaults
-to upstream's last tag plus this commit (`0.9.12+git<date>.<sha>`); set `VERSION` to override.
-`Depends` is written by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's
-`PublicHTTPClient` runs `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a
-library is added. The app is single-instance per D-Bus session, so to try a packaged build
-beside a running Signet use `dbus-run-session -- …/usr/bin/signet-gtk`.
+`packaging/stage.sh DESTDIR [PREFIX]` makes the release build (`--static-swift-stdlib`, so no
+package needs a Swift toolchain) and lays out what every format installs:
+`PREFIX/lib/signet-gtk/signet-gtk` with `signet-gtk_Signet.bundle` beside it (where
+`Bundle.module` looks), `PREFIX/bin/signet-gtk` a relative symlink to it, the desktop entry and
+Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of it:
+- `packaging/deb/build-deb.sh`: `dpkg-deb` alone (no fakeroot or debhelper). `Depends` is written
+  by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's `PublicHTTPClient` runs
+  `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a library is added.
+- `packaging/rpm/build-rpm.sh` with `signet-gtk.spec`: rpmbuild packages the staged tree; rpm finds
+  the library dependencies itself, so one RPM serves Fedora 42+ and openSUSE Tumbleweed.
+- `packaging/tarball/build-tarball.sh`: the staged tree with `install.sh` (`/usr/local`, `--user`
+  for `~/.local`, or `--prefix`; it writes the launcher with the program's full path and keeps a
+  manifest for `uninstall.sh`).
+- `packaging/arch/build-arch.sh`: `signet-gtk-bin`, a PKGBUILD over the release tarball (its
+  download URL and checksum filled in from `PKGBUILD.in`), built here with makepkg; `dist/arch`
+  holds the PKGBUILD and `.SRCINFO` for the AUR.
+
+`packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the last tag
+plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
+release. The app is single-instance per D-Bus session, so to try a packaged build beside a
+running Signet use `dbus-run-session -- …/bin/signet-gtk`. The submodule URL is HTTPS so a
+`git clone --recursive` works without an SSH key.
 
 ## Layout and how upstream is reused
 
