@@ -30,6 +30,7 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 sed "s|^source=.*|source=(\"$(basename "$TARBALL")\")|" dist/arch/PKGBUILD > "$WORK/PKGBUILD"
 cp "$TARBALL" "$WORK/"
-(cd "$WORK" && PKGDEST="$ROOT/dist" makepkg --nodeps --force --noconfirm)
+# Arch's own makepkg.conf compresses with zstd; Debian's defaults to gzip.
+(cd "$WORK" && PKGDEST="$ROOT/dist" PKGEXT=.pkg.tar.zst PACKAGER="${PACKAGER:-Chris Pinnock <chris_pinnock@mac.com>}" makepkg --nodeps --force --noconfirm)
 (cd dist/arch && makepkg --printsrcinfo > .SRCINFO)
 ls dist/*.pkg.tar.*

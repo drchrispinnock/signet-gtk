@@ -1,7 +1,7 @@
 # Packages the files packaging/stage.sh lays out (a release build with the Swift runtime linked
 # in), so the RPM is built on any machine with rpmbuild: packaging/rpm/build-rpm.sh. Library
 # dependencies are found by rpm from the binary (libadwaita-1.so.0()(64bit) and so on), which
-# keeps one package good for Fedora 42+ and openSUSE Tumbleweed (glibc 2.41 or newer).
+# keeps one package good for Fedora 42+ and openSUSE Tumbleweed.
 
 %global debug_package %{nil}
 %global _build_id_links none
@@ -16,6 +16,10 @@ License:        MIT
 URL:            https://github.com/drchrispinnock/signet-gtk
 ExclusiveArch:  %{pkg_arch}
 
+# The library names rpm finds do not say which release: Signet uses GTK 4.18 and libadwaita 1.7
+# (AdwToggleGroup). Fedora and openSUSE name the packages differently.
+Requires:       (gtk4 >= 4.18 or libgtk-4-1 >= 4.18)
+Requires:       (libadwaita >= 1.7 or libadwaita-1-0 >= 1.7)
 Requires:       curl
 # gdk-pixbuf's SVG loader, for the token logos.
 Requires:       (librsvg2 or gdk-pixbuf-loader-rsvg)

@@ -9,8 +9,8 @@ ported yet.
 ## Install
 
 Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). Each
-has the Swift runtime linked in and needs glibc 2.41 or newer (Debian 13, Ubuntu 25.04, Fedora 42,
-openSUSE Tumbleweed, Arch).
+has the Swift runtime linked in and needs GTK 4.18 and libadwaita 1.7 or newer (Debian 13,
+Ubuntu 25.04, Fedora 42, openSUSE Tumbleweed, Arch).
 
 - **Debian, Ubuntu:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
 - **Fedora, openSUSE:** `sudo dnf install ./signet-gtk-<version>-1.x86_64.rpm` (or `zypper install`)

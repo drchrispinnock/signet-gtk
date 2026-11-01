@@ -13,7 +13,7 @@ Remove
 
 Or run it in place: ./bin/signet-gtk
 
-Needs glibc 2.41 or newer and these libraries (package names on Debian 13 / Ubuntu 25.04):
+Needs glibc 2.38, GTK 4.18 and libadwaita 1.7 or newer, and these libraries (package names on Debian 13 / Ubuntu 25.04):
   libgtk-4-1 (4.18+), libadwaita-1-0 (1.7+), libjavascriptcoregtk-6.0-1, libhidapi-hidraw0,
   libwebp7, libcurl4t64, curl, librsvg2-common
 Fedora 42+: gtk4 libadwaita javascriptcoregtk6.0 hidapi libwebp curl librsvg2
