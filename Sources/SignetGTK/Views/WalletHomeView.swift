@@ -62,6 +62,7 @@ final class WalletHomeView {
 
         self.actions = actions
         Operations.unported = { [weak self] in self?.showToast($0) }
+        Operations.presentSettings = { [weak self] in self?.presentSettings() }
         trackers.append(Tracker { [unowned self] in self.updateContent() })
         trackers.append(Tracker { [unowned self] in
             let message = self.model.errorMessage
@@ -124,6 +125,14 @@ final class WalletHomeView {
         }
     }
 
+    private func presentSettings() {
+        guard presented["settings"] == nil else { return }
+        let view = SettingsView(model: model)
+        presented["settings"] = view
+        view.onClosed = { [weak self] in self?.presented["settings"] = nil }
+        view.present(over: root)
+    }
+
     private func makeSheet(_ action: String) -> Sheet? {
         switch action {
         case "create-account": CreateWalletSheet(model: model)
@@ -135,6 +144,7 @@ final class WalletHomeView {
         case "prove-possession": ProofOfPossessionSheet(model: model)
         case "import-account": ImportAccountSheet(model: model)
         case "faucet": FaucetSheet(model: model)
+        case "networks": NetworksSheet(model: model)
         case "staking": StakingSheet(model: model)
         case "send": model.selectedWallet.map { SendSheet(model: model, sender: $0) }
         case "receive": model.selectedWallet.map { ReceiveSheet(model: model, wallet: $0, domains: model.domains) }

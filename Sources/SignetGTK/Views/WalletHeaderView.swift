@@ -159,8 +159,8 @@ enum Operations {
         for sheet in sheets {
             actions.add(sheet.action) { model[keyPath: sheet.flag] = true }
         }
-        // Settings is a window of its own upstream; not ported yet.
-        actions.add("settings") { unported?("Settings is not available on Linux yet.") }
+        // A window of its own upstream, with no model flag; a sheet here, opened by the window.
+        actions.add("settings") { presentSettings?() }
         actions.add("refresh") { Task { await model.refresh() } }
         actions.add("quit") { g_application_quit(app.as()) }
         actions.addChoice(selectAccount, current: "") { key in
@@ -184,6 +184,9 @@ enum Operations {
     }
 
     private static var trackers: [Tracker] = []
+
+    /// Opens Settings (set by the window).
+    static var presentSettings: (() -> Void)?
 
     /// Shows a note for something not ported yet (set by the window).
     static var unported: ((String) -> Void)?

@@ -138,6 +138,14 @@ enum Form {
         return row
     }
 
+    /// A title with its value at the end of the line and controls on lines beneath, for values
+    /// too wide to share a line with the title (a path and its buttons, a URL field).
+    static func stacked(_ title: String, value: Widget? = nil, below: [Widget]) -> Widget {
+        var top = [UI.label(title).expand(h: true)]
+        if let value { top.append(value) }
+        return row(UI.vbox(spacing: 8, [UI.hbox(spacing: 12, top)] + below))
+    }
+
     /// A row of plain text: the notes and warnings upstream writes inside its forms.
     static func note(_ text: String, icon: String? = nil, style: String = "dim-label") -> (row: Widget, label: Widget) {
         let label = UI.label(text, wrap: true).expand(h: true)
