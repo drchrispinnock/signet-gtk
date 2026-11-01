@@ -34,8 +34,10 @@ class Sheet {
         status.setChildren([spinner, statusText])
         status.isVisible = false
         let bottom = UI.hbox(spacing: 8, [status, UI.hspacer(), buttons])
-        // `.padding(20).frame(width:)`: the width includes the padding.
-        let column = UI.vbox(spacing: 16, [content, errorLabel, bottom]).margins(20).size(width: width - 40)
+        // `.padding(20).frame(width:)`, the width including the padding; set again on presenting,
+        // narrower when the window is.
+        self.width = width
+        column = UI.vbox(spacing: 16, [content, errorLabel, bottom]).margins(20).size(width: width - 40)
         // A sheet taller than the window scrolls rather than being cut off.
         let scroller = Widget(gtk_scrolled_window_new()!)
         gtk_scrolled_window_set_policy(scroller.opaque, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
@@ -53,7 +55,14 @@ class Sheet {
     /// Called when the dialog has gone, before `onClosed`: wipe anything secret here.
     func closed() {}
 
+    private let width: Int32
+    private let column: Widget
+
     func present(over parent: Widget) {
+        if let window = gtk_widget_get_root(parent.pointer) {
+            let available = gtk_widget_get_width(UnsafeMutableRawPointer(window).assumingMemoryBound(to: GtkWidget.self)) - 24
+            if available > 200 { column.size(width: min(width, available) - 40) }
+        }
         adw_dialog_present(dialog.as(), parent.pointer)
         // With no field focused, Return still reaches the default button.
         if adw_dialog_get_focus(dialog.as()) == nil, let button = adw_dialog_get_default_widget(dialog.as()) {

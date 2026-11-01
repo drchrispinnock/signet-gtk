@@ -263,6 +263,31 @@ enum UI {
         }, nil)
     }
 
+    /// A button that opens a popover of plain items in headed sections (SwiftUI's `Menu` with
+    /// buttons in it), for menus whose items run closures rather than window actions.
+    static func popoverMenu(_ title: String, sections: [(heading: String?, items: [(title: String, enabled: Bool, action: @MainActor () -> Void)])]) -> Widget {
+        let button = Widget(gtk_menu_button_new()!)
+        gtk_menu_button_set_label(button.opaque, title)
+        let popover = Widget(gtk_popover_new()!)
+        let list = vbox(spacing: 0)
+        for (index, section) in sections.enumerated() {
+            if index > 0 { list.append(separator().margins(top: 4, bottom: 4)) }
+            if let heading = section.heading { list.append(label(heading, classes: ["dim-label", "caption-heading"]).margins(top: 4, bottom: 2, start: 8, end: 8)) }
+            for item in section.items {
+                let entry = self.button(item.title, classes: ["flat", "menu-item"]) {
+                    gtk_popover_popdown(popover.as())
+                    item.action()
+                }
+                gtk_widget_set_halign(gtk_button_get_child(entry.as()), GTK_ALIGN_START)
+                entry.isSensitive = item.enabled
+                list.append(entry)
+            }
+        }
+        gtk_popover_set_child(popover.as(), list.pointer)
+        gtk_menu_button_set_popover(button.opaque, popover.pointer)
+        return button
+    }
+
     /// A menu of `items` that opens where the widget is right-clicked (`.contextMenu` upstream).
     static func contextMenu(_ widget: Widget, _ items: [(String, @MainActor () -> Void)]) {
         let popover = Widget(gtk_popover_new()!)
