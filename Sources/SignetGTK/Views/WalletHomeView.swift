@@ -144,6 +144,8 @@ final class WalletHomeView {
         case "prove-possession": ProofOfPossessionSheet(model: model)
         case "import-account": ImportAccountSheet(model: model)
         case "faucet": FaucetSheet(model: model)
+        case "sign-multisig": SignMultisigSheet(model: model)
+        case "submit-multisig": SubmitMultisigSheet(model: model)
         case "create-multisig": CreateMultisigSheet(model: model)
         case "add-multisig": AddMultisigSheet(model: model)
         case "governance": GovernanceSheet(model: model)
