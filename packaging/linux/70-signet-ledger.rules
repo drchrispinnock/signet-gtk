@@ -1,0 +1,4 @@
+# Ledger devices (USB vendor 0x2c97) for the user at the seat, so Signet can reach the Tezos
+# app through hidapi without root.
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="2c97", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="2c97", TAG+="uaccess"

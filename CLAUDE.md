@@ -51,6 +51,19 @@ tests. Single suites are fine either way. Network tests are opt-in as upstream: 
 `.build/out/Products/Debug-linux-x86_64/SignetTests-test-runner --testing-library swift-testing`
 under the toolchain's `lldb` to get one.
 
+## Packaging
+
+`packaging/deb/build-deb.sh` makes `dist/signet-gtk_<version>_<arch>.deb` with `dpkg-deb` alone (no
+fakeroot or debhelper): a release build with `--static-swift-stdlib`, so the package needs no
+Swift toolchain, installed as `/usr/lib/signet-gtk/signet-gtk` with `signet-gtk_Signet.bundle`
+beside it (where `Bundle.module` looks), `/usr/bin/signet-gtk` a symlink to it, plus the desktop
+entry and Ledger udev rule from `packaging/linux` and upstream's 256 px icon. The version defaults
+to upstream's last tag plus this commit (`0.9.12+git<date>.<sha>`); set `VERSION` to override.
+`Depends` is written by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's
+`PublicHTTPClient` runs `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a
+library is added. The app is single-instance per D-Bus session, so to try a packaged build
+beside a running Signet use `dbus-run-session -- …/usr/bin/signet-gtk`.
+
 ## Layout and how upstream is reused
 
 `upstream/` is the Mac repository as a git submodule. `Package.swift` compiles its
