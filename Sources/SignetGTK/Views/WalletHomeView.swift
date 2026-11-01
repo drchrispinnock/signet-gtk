@@ -144,6 +144,7 @@ final class WalletHomeView {
         case "prove-possession": ProofOfPossessionSheet(model: model)
         case "import-account": ImportAccountSheet(model: model)
         case "faucet": FaucetSheet(model: model)
+        case "governance": GovernanceSheet(model: model)
         case "baking": BakingSheet(model: model)
         case "connect-ledger": ConnectLedgerSheet(model: model)
         case "networks": NetworksSheet(model: model)
