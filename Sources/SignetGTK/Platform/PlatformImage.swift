@@ -9,7 +9,7 @@ final class PlatformImage: @unchecked Sendable {
     let width: Int
     let height: Int
 
-    private init(texture: OpaquePointer) {
+    init(texture: OpaquePointer) {
         self.texture = texture
         width = Int(gdk_texture_get_width(texture))
         height = Int(gdk_texture_get_height(texture))

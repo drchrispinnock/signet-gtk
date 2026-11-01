@@ -220,6 +220,25 @@ enum UI {
         return button
     }
 
+    /// Runs `action` when `accelerator` (`"<Control><Shift>c"`) is pressed anywhere in `widget`.
+    static func shortcut(_ accelerator: String, on widget: Widget, _ action: @escaping @MainActor () -> Void) {
+        final class Box {
+            let action: @MainActor () -> Void
+            init(_ action: @escaping @MainActor () -> Void) { self.action = action }
+        }
+        let callback: @convention(c) (UnsafeMutablePointer<GtkWidget>?, OpaquePointer?, gpointer?) -> gboolean = { _, _, data in
+            let box = Unmanaged<Box>.fromOpaque(data!).takeUnretainedValue()
+            MainActor.assumeIsolated { box.action() }
+            return 1
+        }
+        let box = Unmanaged.passRetained(Box(action)).toOpaque()
+        let controller = gtk_shortcut_controller_new()!
+        gtk_shortcut_controller_set_scope(controller, GTK_SHORTCUT_SCOPE_MANAGED)
+        let shortcutAction = gtk_callback_action_new(callback, box) { data in Unmanaged<Box>.fromOpaque(data!).release() }
+        gtk_shortcut_controller_add_shortcut(controller, gtk_shortcut_new(gtk_shortcut_trigger_parse_string(accelerator), shortcutAction))
+        gtk_widget_add_controller(widget.pointer, controller)
+    }
+
     /// `path` with the home directory written `~`, as `abbreviatingWithTildeInPath`.
     static func tilde(_ url: URL) -> String {
         let path = url.path(percentEncoded: false)

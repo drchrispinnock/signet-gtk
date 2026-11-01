@@ -108,6 +108,7 @@ enum Style {
     .banner-box.info { background: alpha(@accent_bg_color, 0.1); }
     .warning-text { color: @warning_color; }
     .error-text { color: @error_color; }
+    .qr-box { padding: 12px; border-radius: 12px; background: white; border: 1px solid alpha(currentColor, 0.25); }
     .monospace text, .monospace { font-family: monospace; }
 
     .error-message { color: @error_color; }

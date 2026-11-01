@@ -78,7 +78,9 @@ app share the module; upstream's types are `internal`, so they must). The produc
     GdkTexture, decoded and downsampled by gdk-pixbuf, WebP by libwebp since TzKT's avatars are
     WebP and gdk-pixbuf rarely has a WebP loader) in place of `NSImage`; the cache is
     `$XDG_CACHE_HOME/signet/artwork`. `Views/RemoteImage.swift` draws one.
-  - Not yet replaced: `QRCode`, `UpdaterService`.
+  - `QRCode.swift`: a QR encoder in Swift (byte mode, all versions and levels) in place of Core
+    Image, checked module for module against libqrencode. Its image is a `PlatformImage`.
+  - Not yet replaced: `UpdaterService`.
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
     `@MainActor` code and `Task { @MainActor … }` run inside GTK's loop. Everything UI is on the
