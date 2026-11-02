@@ -173,7 +173,7 @@ final class WalletHomeView {
         case "networks": NetworksSheet(model: model)
         case "staking": StakingSheet(model: model)
         case "send": model.selectedWallet.map { SendSheet(model: model, sender: $0) }
-        case "receive": model.selectedWallet.map { ReceiveSheet(model: model, wallet: $0, domains: model.domains) }
+        case "receive": model.selectedWallet.map { ReceiveSheet(model: model, wallet: $0, domains: model.domains, showsEtherlink: model.network.hasL2 && $0.address.isUsableOnEtherlink) }
         default: nil
         }
     }
