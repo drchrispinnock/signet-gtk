@@ -14,8 +14,8 @@ syscalls outside `Sources/SignetGTK/Platform`.
 Stack: Swift 6 (installed with swiftly, `~/.local/share/swiftly/bin`), GTK4 + libadwaita for the
 UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the
 same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
-(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `libwebp-dev`,
-`pkg-config`).
+(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libwebkitgtk-6.0-dev`,
+`libhidapi-dev`, `libwebp-dev`, `pkg-config`). WebKitGTK's web view is the Buy sheet's on-ramp page.
 
 The development machine is reached over SSH. The user's own desktop is XFCE on a TigerVNC X
 server at `DISPLAY=:1`: put the app there only when the user wants to see it, and never send it
@@ -105,7 +105,7 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `$XDG_CACHE_HOME/signet/artwork`. `Views/RemoteImage.swift` draws one.
   - `QRCode.swift`: a QR encoder in Swift (byte mode, all versions and levels) in place of Core
     Image, checked module for module against libqrencode. Its image is a `PlatformImage`.
-  - Not yet replaced: `UpdaterService`.
+  - Not replaced: `UpdaterService` (Sparkle; Signet is updated by whatever installed it).
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
     `@MainActor` code and `Task { @MainActor … }` run inside GTK's loop. Everything UI is on the
@@ -146,15 +146,30 @@ app share the module; upstream's types are `internal`, so they must). The produc
 
 Done so far: the window, the welcome screen, the launch disclaimer, the dashboard
 (`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`, `ActionButtonsView`, `AssetListView`,
-`DelegateRowView`, `AccountNotOnChainView`, `ActivityTabsView`), and every layer 1 sheet: Create,
-Import, Connect Ledger, Rename, Export secret key, Proof of possession, Add address, Remember key,
-Forget, Send, Receive, Staking, Baking, Governance (Tezos tab), Faucet, Buy, Networks, Settings,
-the four multisig sheets, Connect to a dApp and the dApp request sheet. Send, Staking (delegate),
-Faucet, Import, Create and the multisig sheets have been run against Shadownet.
-Not ported, on purpose for now: everything Etherlink (`BridgeSheet`, `ChainSidePicker` and the
-Etherlink side of Send and Receive, `LayerToggles`, `EtherlinkGovernanceView`, the Layer 2 rows
-of Networks) and everything shielded (TzEL: `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`,
-`ShieldedAddressSheet`, `ShieldSettingsSheet`); their menu items still show the toast.
+`DelegateRowView`, `AccountNotOnChainView`, `ActivityTabsView` with `LayerToggles`), every layer 1
+sheet (Create, Import, Connect Ledger, Rename, Export secret key, Proof of possession, Add
+address, Remember key, Forget, Send, Receive, Staking, Baking, Governance, Faucet, Buy with its
+in-app `BuyWebView`, Networks, Settings, the four multisig sheets, Connect to a dApp and the dApp
+request sheet), Etherlink (`ChainSidePicker` and the Etherlink side of Send and Receive with the
+alias link, `BridgeSheet`, the Layer 2 rows of Networks with `SettingField`, the Etherlink tab of
+Governance, `EtherlinkGovernanceView`), and the NFT operations of 0.9.13 (selection and the
+right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTsSheet`). Send,
+Staking (delegate), Faucet, Import, Create and the multisig sheets have been run against
+Shadownet; the Etherlink sheets, NFT Transfer/Burn and Etherlink governance have only been
+looked at, not run with real tez (NFT Download and the Buy widget have been run).
+Not ported, on purpose: everything shielded (TzEL: `ShieldSheet`, `UnshieldSheet`,
+`SendShieldedSheet`, `ShieldedAddressSheet`, `ShieldSettingsSheet`); their menu items still show
+the toast.
+- NFT tiles select with click, Ctrl-click and Shift-click (`UI.onClick(_:modifiers:)`), and a
+  right-click menu whose entries depend on that state is `UI.contextMenu(_:build:)`, rebuilt
+  each time it opens (`UI.MenuEntry`: items, a dimmed line of explanation, dividers).
+- WebKit takes the thread it is first set up on for its main thread, and the bridge runs
+  JavaScriptCore on a thread of its own: `SignetApp`'s `startup` makes and drops a web view
+  before the bridge exists. Without it the Buy sheet's web view aborts the app (or, with only a
+  bare `JSContext` made first, never loads). WebKitGTK says which frame a navigation is for only
+  at its response, so `BuyWebView` applies upstream's main-frame rule there
+  (`is_main_frame_main_resource`); its policy functions keep upstream's names and signatures,
+  with a `WKNavigationType` of its own, so `BuyWebViewTests` run here.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -200,8 +215,11 @@ test's mock is affected, not real requests.
 - Settings is a sheet over the window rather than a window of its own, and has no Updates
   section (Signet is updated by whatever installed it, not Sparkle). "Show in Finder" is "Open
   Folder", which opens the folder in the file manager.
-- Buy opens a widget provider (Mt Pelerin) in the browser as a direct link, address pre-filled
-  and pre-validated as on the Mac; the in-app `BuyWebView` is not ported (WebKitGTK could do it).
+- Buy shows a widget provider (Mt Pelerin) in a WebKitGTK web view, as the Mac does in a
+  WKWebView. A permission request carries no frame there, so camera and microphone go by the
+  page the main frame shows (WebKit itself keeps them from frames not delegated them).
+- NFT Download's "Show in Finder" is "Open Folder" (the file manager, with the first saved file
+  selected where it can); Ctrl-click stands in for Cmd-click when selecting tiles.
 - `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)
   and the app is `G_APPLICATION_HANDLES_OPEN`; its `open` signal hands each URI to upstream's
   `handleIncomingURL`, and a second launch passes the link to the running Signet over D-Bus.

@@ -1,4 +1,5 @@
 import CAdwaita
+import CWebKit
 import Foundation
 
 /// The GTK counterpart of upstream's `SignetApp.swift`: builds the model, owns the application
@@ -60,6 +61,13 @@ enum SignetApp {
         // passed to the running one, as on the Mac.
         let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 1 << 2))!)
         Signals.connect(app, "startup") {
+            // WebKit takes the thread it is first set up on for the main thread, and the Buy
+            // sheet's web view needs that to be GTK's. The bridge, made after startup, uses
+            // JavaScriptCore (WebKit's engine) on a thread of its own, so WebKit is set up here
+            // first, with a web view made and dropped.
+            let primer = webkit_web_view_new()!
+            g_object_ref_sink(UnsafeMutableRawPointer(primer))
+            g_object_unref(UnsafeMutableRawPointer(primer))
             Style.install()
             // The icon the package installs under the application id.
             gtk_window_set_default_icon_name("org.tezos.signet")

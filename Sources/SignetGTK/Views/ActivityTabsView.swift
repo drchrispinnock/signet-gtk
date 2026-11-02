@@ -36,7 +36,13 @@ final class ActivityTabsView {
         layers = LayerToggles(model: model)
         root = UI.vbox(spacing: 10, [UI.hbox(spacing: 12, [toggles, UI.hspacer(), layers.root]), body])
         trackers.append(Tracker { [unowned self] in self.update() })
-        trackers.append(Tracker { [unowned self] in self.layers.root.isVisible = self.model.filtersLayers })
+        trackers.append(Tracker { [unowned self] in
+            let filters = self.model.filtersLayers
+            self.layers.root.isVisible = filters
+            // `.frame(maxWidth: 400)`, narrower beside the layer toggles so the row still fits the
+            // narrowest window (480 less the margins).
+            self.toggles.size(width: filters ? 340 : 400)
+        })
     }
 
     private func update() {

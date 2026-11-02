@@ -105,6 +105,8 @@ enum Style {
     .selected-tile .nft-name { opacity: 1; }
     button.destructive-item { color: @error_color; }
 
+    .buy-web-view { border-radius: 10px; border: 1px solid alpha(currentColor, 0.25); }
+
     /* BridgeSheet. */
     .bridge-side { padding: 12px; border-radius: 10px; background: alpha(currentColor, 0.06); }
     button.bridge-arrow { color: @accent_color; min-width: 40px; min-height: 40px; }
