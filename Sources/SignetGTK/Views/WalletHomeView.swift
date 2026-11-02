@@ -71,6 +71,7 @@ final class WalletHomeView {
         })
         trackers.append(Tracker { [unowned self] in self.presentSheets() })
         trackers.append(Tracker { [unowned self] in self.presentDAppRequest() })
+        trackers.append(Tracker { [unowned self] in self.presentNFTSheets() })
 
         // `.task` upstream: start watching the nodes and load the account.
         model.nodeMonitor.start()
@@ -142,6 +143,48 @@ final class WalletHomeView {
         view.present(over: root)
     }
 
+    private var nftOperation: TransferNFTSheet?
+    private var nftDownload: DownloadNFTsSheet?
+
+    /// `.sheet(item: $model.nftOperation)` and `.sheet(item: $model.nftDownload)`: each shown
+    /// while its item is set, the item cleared when the sheet closes.
+    private func presentNFTSheets() {
+        let operation = model.nftOperation
+        if nftOperation?.operation != operation {
+            // Forgotten before it is closed, so its closing leaves the new item alone.
+            let old = nftOperation
+            nftOperation = nil
+            old?.dismiss()
+            if let operation {
+                let view = TransferNFTSheet(model: model, operation: operation)
+                nftOperation = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.nftOperation === view else { return }
+                    self.nftOperation = nil
+                    model.nftOperation = nil
+                }
+                view.present(over: root)
+            }
+        }
+        let download = model.nftDownload
+        if nftDownload?.download != download {
+            // Forgotten before it is closed, so its closing leaves the new item alone.
+            let old = nftDownload
+            nftDownload = nil
+            old?.dismiss()
+            if let download {
+                let view = DownloadNFTsSheet(model: model, downloader: model.nftDownloader, download: download)
+                nftDownload = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.nftDownload === view else { return }
+                    self.nftDownload = nil
+                    model.nftDownload = nil
+                }
+                view.present(over: root)
+            }
+        }
+    }
+
     private func presentSettings() {
         guard presented["settings"] == nil else { return }
         let view = SettingsView(model: model)
@@ -171,6 +214,7 @@ final class WalletHomeView {
         case "baking": BakingSheet(model: model)
         case "connect-ledger": ConnectLedgerSheet(model: model)
         case "networks": NetworksSheet(model: model)
+        case "bridge": BridgeSheet(model: model)
         case "staking": StakingSheet(model: model)
         case "send": model.selectedWallet.map { SendSheet(model: model, sender: $0) }
         case "receive": model.selectedWallet.map { ReceiveSheet(model: model, wallet: $0, domains: model.domains, showsEtherlink: model.network.hasL2 && $0.address.isUsableOnEtherlink) }

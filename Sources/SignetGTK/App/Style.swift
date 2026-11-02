@@ -100,6 +100,15 @@ enum Style {
     .nft-placeholder { background: alpha(currentColor, 0.1); }
     .tile-chip { padding: 2px 6px; border-radius: 999px; background: alpha(black, 0.6); color: white; }
     button.menu-item { font-weight: normal; }
+    button.layer-toggle { padding: 2px 5px; min-height: 0; min-width: 0; }
+    .selected-tile .nft-tile { outline: 3px solid @accent_bg_color; outline-offset: -3px; }
+    .selected-tile .nft-name { opacity: 1; }
+    button.destructive-item { color: @error_color; }
+
+    /* BridgeSheet. */
+    .bridge-side { padding: 12px; border-radius: 10px; background: alpha(currentColor, 0.06); }
+    button.bridge-arrow { color: @accent_color; min-width: 40px; min-height: 40px; }
+    button.bridge-arrow image { -gtk-icon-size: 24px; }
 
     /* Sheets. */
     .banner-box { padding: 12px; border-radius: 8px; }
