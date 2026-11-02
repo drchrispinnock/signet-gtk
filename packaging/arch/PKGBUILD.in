@@ -1,0 +1,27 @@
+# Maintainer: Chris Pinnock <chris_pinnock@mac.com>
+#
+# signet-gtk-bin: the release tarball (a build with the Swift runtime linked in), so Arch needs
+# no Swift toolchain. Made from PKGBUILD.in by packaging/arch/build-arch.sh, which fills in the
+# version and checksum.
+pkgname=signet-gtk-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Tezos wallet for Linux (GTK port of Signet)'
+arch=('x86_64')
+url='https://github.com/drchrispinnock/signet-gtk'
+license=('MIT')
+depends=('glibc' 'gcc-libs' 'glib2' 'gtk4' 'libadwaita' 'webkitgtk-6.0' 'hidapi' 'libwebp' 'curl' 'librsvg'
+         'pango' 'harfbuzz' 'cairo' 'gdk-pixbuf2' 'graphene' 'vulkan-icd-loader')
+optdepends=('noto-fonts-emoji: the baker emoji in the delegate row')
+provides=('signet-gtk')
+conflicts=('signet-gtk')
+options=('!strip' '!debug')
+source=("@SOURCE@")
+sha256sums=('@SHA256@')
+
+package() {
+    cd "signet-gtk-$pkgver-linux-$CARCH"
+    install -d "$pkgdir/usr"
+    cp -a bin lib share "$pkgdir/usr/"
+    install -Dm644 share/doc/signet-gtk/copyright "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
