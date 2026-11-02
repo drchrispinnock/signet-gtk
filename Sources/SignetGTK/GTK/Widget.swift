@@ -339,9 +339,11 @@ enum Signals {
             let box = Unmanaged<Box>.fromOpaque(data!).takeUnretainedValue()
             MainActor.assumeIsolated { box.action() }
         }
+        // GLib 2.90 marks GConnectFlags a flag enum, which Swift imports as an option set without
+        // the C names, so the flag is given by value.
         g_signal_connect_data(instance.raw, signal, unsafeBitCast(handler, to: GCallback.self), box, { data, _ in
             Unmanaged<Box>.fromOpaque(data!).release()
-        }, G_CONNECT_SWAPPED)
+        }, GConnectFlags(rawValue: 2))  // G_CONNECT_SWAPPED
     }
 }
 

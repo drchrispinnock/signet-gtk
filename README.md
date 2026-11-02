@@ -10,7 +10,7 @@ ported yet.
 
 Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). Each
 has the Swift runtime linked in and needs GTK 4.18 and libadwaita 1.7 or newer (Debian 13,
-Ubuntu 25.04, Fedora 42, openSUSE Tumbleweed, Arch).
+Ubuntu 25.04 and later, Fedora 42, openSUSE Tumbleweed, Arch).
 
 - **Debian, Ubuntu:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
 - **Fedora, openSUSE:** `sudo dnf install ./signet-gtk-<version>-1.x86_64.rpm` (or `zypper install`)
@@ -25,24 +25,34 @@ that adds it.
 ## Build from source
 
 You need Swift 6 (tested with 6.4) and the development files for GTK 4, libadwaita,
-JavaScriptCore (WebKitGTK 6.0), hidapi and libwebp.
+JavaScriptCore (WebKitGTK 6.0), hidapi and libwebp. These steps have been tried on Debian 13 and
+Ubuntu 26.10.
 
-On Debian 13:
+**1. System packages.** The first two lines are what Swift itself needs, the rest is for Signet:
 
 ```sh
-sudo apt install git curl pkg-config libgtk-4-dev libadwaita-1-dev \
-    libjavascriptcoregtk-6.0-dev libhidapi-dev libwebp-dev librsvg2-common
+sudo apt install git curl gnupg2 binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
+    libpython3-dev libxml2-dev libncurses-dev libz3-dev \
+    pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libhidapi-dev \
+    libwebp-dev librsvg2-common
 ```
 
-Install Swift with [swiftly](https://www.swift.org/install/linux/), which puts it in
-`~/.local/share/swiftly/bin`:
+**2. Swift**, with [swiftly](https://www.swift.org/install/linux/), which installs it in
+`~/.local/share/swiftly` and adds it to your path through `~/.profile`:
 
 ```sh
 curl -O https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz
 tar zxf swiftly-$(uname -m).tar.gz && ./swiftly init
+. ~/.local/share/swiftly/env.sh     # this shell; new logins get it from ~/.profile
+hash -r
+swift --version
 ```
 
-Then clone with the Mac app as a submodule, build and run:
+If `swift --version` says there is no `swift`, swiftly installed itself but not Swift: `swiftly
+init` gives up when a package Swift needs is missing, and prints an `apt-get install …` line.
+Run that line with `sudo`, then `swiftly install --use latest`.
+
+**3. Signet.** Clone it with the Mac app as a submodule, build and run:
 
 ```sh
 git clone --recursive https://github.com/drchrispinnock/signet-gtk.git
@@ -51,13 +61,15 @@ swift build -c release --static-swift-stdlib
 .build/release/signet-gtk
 ```
 
-`--static-swift-stdlib` links the Swift runtime into the program, so it runs on a machine without
-Swift. The program looks for its resources in `signet-gtk_Signet.bundle` beside it: copy both
-together if you move it. A plain `swift build` makes a debug build in `.build/debug`.
+The first build takes a few minutes. `--static-swift-stdlib` links the Swift runtime into the
+program, so it runs on a machine without Swift. The program looks for its resources in
+`signet-gtk_Signet.bundle` beside it: copy both together if you move it. A plain `swift build`
+makes a debug build in `.build/debug`. To update later: `git pull && git submodule update`, then
+build again.
 
 Other distributions need the same libraries under their own names, for example on Fedora
 `gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel hidapi-devel libwebp-devel`, and on Arch
-`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`; only Debian 13 has been tried.
+`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`; `swiftly init` lists what Swift needs there.
 
 Run the tests with:
 
