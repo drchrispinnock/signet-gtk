@@ -55,7 +55,8 @@ enum SignetApp {
         #endif
 
         MainLoop.attachMainQueue()
-        let app = Widget(adw_application_new("org.tezos.signet", G_APPLICATION_DEFAULT_FLAGS)!)
+        // G_APPLICATION_DEFAULT_FLAGS: a raw value, since GLib 2.90 imports the flags as an option set.
+        let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 0))!)
         Signals.connect(app, "startup") {
             Style.install()
             // The icon the package installs under the application id.

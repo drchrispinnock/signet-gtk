@@ -40,7 +40,13 @@ Install Swift with [swiftly](https://www.swift.org/install/linux/), which puts i
 ```sh
 curl -O https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz
 tar zxf swiftly-$(uname -m).tar.gz && ./swiftly init
+. ~/.local/share/swiftly/env.sh     # or log in again
+swift --version
 ```
+
+If `swift` is still missing, swiftly is installed but Swift is not: `swiftly init` stops before
+installing it when system packages are missing (on Ubuntu, `gnupg` among them). It prints an
+`apt-get install …` line; run that with `sudo`, then `swiftly install --use latest`.
 
 Then clone with the Mac app as a submodule, build and run:
 
@@ -57,7 +63,8 @@ together if you move it. A plain `swift build` makes a debug build in `.build/de
 
 Other distributions need the same libraries under their own names, for example on Fedora
 `gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel hidapi-devel libwebp-devel`, and on Arch
-`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`; only Debian 13 has been tried.
+`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`. Ubuntu 26.10 uses the same package names as
+Debian; Debian 13 and Ubuntu 26.10 have been tried.
 
 Run the tests with:
 
