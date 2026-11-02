@@ -100,6 +100,7 @@ final class BridgeSheet: Sheet {
     private func render() {
         setBusy(nil)
         canClose = step != .working
+        if case .done = step { result.isVisible = true } else { result.isVisible = false }
         switch step {
         case .compose:
             sides.isVisible = true

@@ -134,8 +134,12 @@ private final class ComposeTransferView {
         let picker = ChainSidePicker(side: side, canSwitch: sheet.canSwitch) { [unowned sheet] in sheet.switchSide(to: $0) }
         let proceed: @MainActor () -> Void = { [send] in if send.canProceed { Task { await send.proceedToConfirm() } } }
 
-        var from = [AccountAvatarView(address: send.sender.address, size: 24).root, UI.label(send.sender.alias),
-                    UI.label(send.sender.address.shortened(), classes: ["address", "dim-label"])]
+        // The alias and address give way before the row's title does.
+        let alias = UI.label(send.sender.alias)
+        let address = UI.label(send.sender.address.shortened(), classes: ["address", "dim-label"])
+        gtk_label_set_ellipsize(alias.opaque, PANGO_ELLIPSIZE_END)
+        gtk_label_set_ellipsize(address.opaque, PANGO_ELLIPSIZE_MIDDLE)
+        var from = [AccountAvatarView(address: send.sender.address, size: 24).root, alias, address]
         if let spendable = send.spendable {
             from.append(UI.label("\(AssetBalance.format(spendable, symbol: "tz")) spendable", classes: ["dim-label"]))
         }
