@@ -55,15 +55,34 @@ enum SignetApp {
         #endif
 
         MainLoop.attachMainQueue()
-        // G_APPLICATION_DEFAULT_FLAGS: a raw value, since GLib 2.90 imports the flags as an option set.
-        let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 0))!)
+        // G_APPLICATION_HANDLES_OPEN: a raw value, since GLib 2.90 imports the flags as an option
+        // set. The app opens signet:// links (`open` below); a link given to a second launch is
+        // passed to the running one, as on the Mac.
+        let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 1 << 2))!)
         Signals.connect(app, "startup") {
             Style.install()
             // The icon the package installs under the application id.
             gtk_window_set_default_icon_name("org.tezos.signet")
         }
         Signals.connect(app, "activate") { activate(app) }
+        let open: @convention(c) (gpointer?, UnsafeMutablePointer<OpaquePointer?>?, gint, UnsafePointer<gchar>?, gpointer?) -> Void = { app, files, count, _, _ in
+            var urls: [URL] = []
+            for index in 0..<Int(max(count, 0)) {
+                guard let file = files?[index], let uri = g_file_get_uri(file) else { continue }
+                if let url = URL(string: String(cString: uri)) { urls.append(url) }
+                g_free(uri)
+            }
+            MainActor.assumeIsolated { SignetApp.openURLs(urls, app: Widget(app!)) }
+        }
+        g_signal_connect_data(app.raw, "open", unsafeBitCast(open, to: GCallback.self), nil, nil, GConnectFlags(rawValue: 0))
         return g_application_run(app.as(), CommandLine.argc, CommandLine.unsafeArgv)
+    }
+
+    /// `.onOpenURL`: signet://?type=tzip10&data=<pairing code>, what a dApp's wallet list opens
+    /// for desktop wallets. The window comes up first if this launch was only to open the link.
+    private static func openURLs(_ urls: [URL], app: Widget) {
+        activate(app)
+        for url in urls { model?.handleIncomingURL(url) }
     }
 
     private static func activate(_ app: Widget) {
