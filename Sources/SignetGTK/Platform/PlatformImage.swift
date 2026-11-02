@@ -17,6 +17,9 @@ final class PlatformImage: @unchecked Sendable {
 
     deinit { g_object_unref(UnsafeMutableRawPointer(texture)) }
 
+    /// In pixels, as `NSImage.size` is for the images `ImageLoader` makes upstream.
+    var size: CGSize { CGSize(width: width, height: height) }
+
     /// Decodes `data` (WebP through libwebp, anything else gdk-pixbuf has a loader for, SVG
     /// through librsvg), scaled while decoding so its long edge is at most `maxPixelSize`; an
     /// image that declares an edge longer than `refusingAbove` is not decoded at all.

@@ -18,13 +18,9 @@ let macOnly = [
 ].map { "upstream/Signet/\($0)" }
 
 let macOnlyTests = [
-    "ArtworkCacheTests.swift",
-    "ArtworkPolicyTests.swift",
     "AuditRepairTests.swift",
-    "AvatarTests.swift",
     "BuyWebViewTests.swift",
     "MtPelerinTests.swift",
-    "NFTTests.swift",
     "QRCodeTests.swift",
     "TestHostIsolationTests.swift",
     "UpdaterTests.swift",
