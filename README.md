@@ -31,7 +31,7 @@ Ubuntu 26.10.
 **1. System packages.** The first two lines are what Swift itself needs, the rest is for Signet:
 
 ```sh
-sudo apt install git curl gnupg2 binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
+sudo apt install git curl gnupg binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
     libpython3-dev libxml2-dev libncurses-dev libz3-dev \
     pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libhidapi-dev \
     libwebp-dev librsvg2-common
