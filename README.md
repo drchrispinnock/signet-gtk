@@ -78,6 +78,42 @@ Run the tests with:
 swift build --build-tests && swift test --skip-build --no-parallel
 ```
 
+### FreeBSD
+
+Signet builds and runs on FreeBSD with Swift's FreeBSD preview toolchain (see
+[swift.org/install](https://www.swift.org/install/)). These steps have been tried on FreeBSD 15.1
+on amd64, with a Swift 6.5 development snapshot made for FreeBSD 14.
+
+**1. Packages.** The first line is what the Swift toolchain needs (`compat14x-amd64` only when
+running a toolchain made for FreeBSD 14 on 15), the second is for Signet. GTK needs at least one
+font installed: with none, the window comes up blank.
+
+```sh
+sudo pkg install git curl sqlite3 libuuid compat14x-amd64 \
+    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp dejavu adwaita-icon-theme
+```
+
+**2. Swift.** The toolchain is a tarball holding a `usr` directory; unpack it anywhere and put its
+`usr/bin` on your path, for example:
+
+```sh
+mkdir ~/swift && tar xzf <toolchain>.tar.gz -C ~/swift
+export PATH=$HOME/swift/usr/bin:$PATH     # sh; for csh: set path = ($HOME/swift/usr/bin $path)
+swift --version
+```
+
+**3. Signet** builds the same way as on Linux:
+
+```sh
+git clone --recursive https://github.com/drchrispinnock/signet-gtk.git
+cd signet-gtk
+swift build -c release --static-swift-stdlib
+.build/release/signet-gtk
+```
+
+The tests run as on Linux too; two of them need `python3` (`sudo pkg install python3`). Using a
+Ledger on FreeBSD has not been tried yet.
+
 ## Make the packages
 
 From a source checkout, after building once:

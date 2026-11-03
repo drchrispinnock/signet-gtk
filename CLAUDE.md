@@ -64,6 +64,8 @@ with the same `nativeReadersUseTheBoundedPath` failure. What differs, each behin
 - Ports install under `/usr/local`: upstream's `PublicHTTPClient` runs `/usr/local/bin/curl`.
 - `getnameinfo` takes `size_t` lengths (upstream's `EndpointPolicy`).
 - The lock tests' python is `/usr/local/bin/python3`.
+- `--static-swift-stdlib` needs libexecinfo (`backtrace()`), linked by `Package.swift`.
+The README's FreeBSD section has the steps for users; keep the two in step.
 The test machine has no Xvfb, so the app was run on this machine's `:99` through the SSH
 connection: `ssh -R 6099:/tmp/.X11-unix/X99 …` and `DISPLAY=127.0.0.1:99 GSK_RENDERER=cairo` there.
 Ledger access on FreeBSD (devd rules, `usbhid`) has not been tried.
