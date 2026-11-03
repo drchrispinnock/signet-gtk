@@ -23,6 +23,14 @@ let macOnlyTests = [
     "UpdaterTests.swift",
 ]
 
+/// hidapi's pkg-config name: Linux ships one library per backend (hidraw is the kernel's own,
+/// needing no libusb); FreeBSD has a single libhidapi on top of usbhid.
+#if os(Linux)
+let hidapi = "hidapi-hidraw"
+#else
+let hidapi = "hidapi"
+#endif
+
 let package = Package(
     name: "signet-gtk",
     products: [.executable(name: "signet-gtk", targets: ["Signet"])],
@@ -34,7 +42,7 @@ let package = Package(
         .target(name: "CTzel", path: "Sources/CTzel", cSettings: [.unsafeFlags(["-O3"])]),
         .systemLibrary(name: "CJavaScriptCore", path: "Sources/CJavaScriptCore", pkgConfig: "javascriptcoregtk-6.0",
                        providers: [.apt(["libjavascriptcoregtk-6.0-dev"])]),
-        .systemLibrary(name: "CHidapi", path: "Sources/CHidapi", pkgConfig: "hidapi-hidraw",
+        .systemLibrary(name: "CHidapi", path: "Sources/CHidapi", pkgConfig: hidapi,
                        providers: [.apt(["libhidapi-dev"])]),
         // WebP, which gdk-pixbuf reads only with a loader most systems lack: TzKT's avatars are WebP.
         .systemLibrary(name: "CWebP", path: "Sources/CWebP", pkgConfig: "libwebp",

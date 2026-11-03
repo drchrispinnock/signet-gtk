@@ -111,6 +111,7 @@ enum Style {
     .bridge-side { padding: 12px; border-radius: 10px; background: alpha(currentColor, 0.06); }
     button.bridge-arrow { color: @accent_color; min-width: 40px; min-height: 40px; }
     button.bridge-arrow image { -gtk-icon-size: 24px; }
+    .shield-arrow { border-radius: 999px; background: @accent_bg_color; color: @accent_fg_color; }
 
     /* Sheets. */
     .banner-box { padding: 12px; border-radius: 8px; }
