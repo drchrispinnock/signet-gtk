@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 **signet-gtk**: a port of **Signet**, the macOS Tezos wallet written in SwiftUI, to Linux first and
-then the BSDs. Linux is the primary target. FreeBSD should follow, since Swift has a FreeBSD port
-and preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
+then the BSDs. Linux is the primary target. FreeBSD builds and runs too (see "FreeBSD" below), with
+Swift's FreeBSD preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
 there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: hidapi for
 Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or
 syscalls outside `Sources/SignetGTK/Platform`.
@@ -50,6 +50,23 @@ tests. Single suites are fine either way. Network tests are opt-in as upstream: 
 `SIGNET_NETWORK_TESTS=1`. A crash in the test runner prints no backtrace by default; run
 `.build/out/Products/Debug-linux-x86_64/SignetTests-test-runner --testing-library swift-testing`
 under the toolchain's `lldb` to get one.
+
+## FreeBSD
+
+Tried on FreeBSD 15.1 (amd64) with a Swift 6.5-dev CI snapshot unpacked in `~/swift`
+(`export PATH=$HOME/swift/usr/bin:$PATH`; its own `lldb` does not load, the base system's
+`/usr/bin/lldb` does). Packages: `gtk4 libadwaita webkit2-gtk_60 hidapi webp pkgconf curl`, plus
+a font (`dejavu`; with no font at all GTK lays the window out tens of thousands of pixels tall and
+draws nothing) and `python3` for two lock tests (run as `/usr/local/bin/python3` there). `swift build` and `swift test` work as on Linux,
+with the same `nativeReadersUseTheBoundedPath` failure. What differs, each behind `#if`:
+- hidapi's pkg-config name is `hidapi` (Linux: `hidapi-hidraw`), chosen in `Package.swift`;
+  `CHidapi`'s module map names no library, so pkg-config's flags do the linking.
+- Ports install under `/usr/local`: upstream's `PublicHTTPClient` runs `/usr/local/bin/curl`.
+- `getnameinfo` takes `size_t` lengths (upstream's `EndpointPolicy`).
+- The lock tests' python is `/usr/local/bin/python3`.
+The test machine has no Xvfb, so the app was run on this machine's `:99` through the SSH
+connection: `ssh -R 6099:/tmp/.X11-unix/X99 …` and `DISPLAY=127.0.0.1:99 GSK_RENDERER=cairo` there.
+Ledger access on FreeBSD (devd rules, `usbhid`) has not been tried.
 
 ## Packaging
 
@@ -169,9 +186,10 @@ transfer needs the token and has not been run here.
   right-click menu whose entries depend on that state is `UI.contextMenu(_:build:)`, rebuilt
   each time it opens (`UI.MenuEntry`: items, a dimmed line of explanation, dividers).
 - WebKit takes the thread it is first set up on for its main thread, and the bridge runs
-  JavaScriptCore on a thread of its own: `SignetApp`'s `startup` makes and drops a web view
+  JavaScriptCore on a thread of its own: `SignetApp`'s `startup` makes WebKit's default context
   before the bridge exists. Without it the Buy sheet's web view aborts the app (or, with only a
-  bare `JSContext` made first, never loads). WebKitGTK says which frame a navigation is for only
+  bare `JSContext` made first, never loads). It once made and dropped a web view instead, which
+  crashed FreeBSD's WebKitGTK at launch about one time in four. WebKitGTK says which frame a navigation is for only
   at its response, so `BuyWebView` applies upstream's main-frame rule there
   (`is_main_frame_main_resource`); its policy functions keep upstream's names and signatures,
   with a `WKNavigationType` of its own, so `BuyWebViewTests` run here.
