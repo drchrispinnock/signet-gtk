@@ -153,13 +153,18 @@ in-app `BuyWebView`, Networks, Settings, the four multisig sheets, Connect to a 
 request sheet), Etherlink (`ChainSidePicker` and the Etherlink side of Send and Receive with the
 alias link, `BridgeSheet`, the Layer 2 rows of Networks with `SettingField`, the Etherlink tab of
 Governance, `EtherlinkGovernanceView`), and the NFT operations of 0.9.13 (selection and the
-right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTsSheet`). Send,
-Staking (delegate), Faucet, Import, Create and the multisig sheets have been run against
-Shadownet; the Etherlink sheets, NFT Transfer/Burn and Etherlink governance have only been
-looked at, not run with real tez (NFT Download and the Buy widget have been run).
-Not ported, on purpose: everything shielded (TzEL: `ShieldSheet`, `UnshieldSheet`,
-`SendShieldedSheet`, `ShieldedAddressSheet`, `ShieldSettingsSheet`); their menu items still show
-the toast.
+right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTsSheet`), and
+shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with the address
+book, `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`; the pieces they share, the two sides
+and the hash line, are statics on `ShieldSheet`, and a pasted address goes into a
+`ShieldedJSONEditor`). Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+the Bridge deposit, the Etherlink alias link and Send on Etherlink have been run against
+Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
+real tez (NFT Download and the Buy widget have been run). The shielded sheets have been run
+against Shadownet's TzEL deployment as far as it goes without the operator's access token
+(settings, the token on file, a shielded address and the address book, the shield's rollup
+checks, pool and estimate, the unshield and transfer estimates); a shield, unshield or private
+transfer needs the token and has not been run here.
 - NFT tiles select with click, Ctrl-click and Shift-click (`UI.onClick(_:modifiers:)`), and a
   right-click menu whose entries depend on that state is `UI.contextMenu(_:build:)`, rebuilt
   each time it opens (`UI.MenuEntry`: items, a dimmed line of explanation, dividers).
@@ -218,6 +223,9 @@ test's mock is affected, not real requests.
 - Buy shows a widget provider (Mt Pelerin) in a WebKitGTK web view, as the Mac does in a
   WKWebView. A permission request carries no frame there, so camera and microphone go by the
   page the main frame shows (WebKit itself keeps them from frames not delegated them).
+- Shielded settings' explanation of the TzEL services leaves out upstream's sentence that macOS
+  lets plain http through only for the hosts Signet ships with: Linux has no App Transport
+  Security, so any http service works.
 - NFT Download's "Show in Finder" is "Open Folder" (the file manager, with the first saved file
   selected where it can); Ctrl-click stands in for Cmd-click when selecting tiles.
 - `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)

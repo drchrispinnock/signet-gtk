@@ -3,8 +3,8 @@
 Port of the [Signet](https://github.com/drchrispinnock/signet) Tezos wallet to Linux and other
 Unices: GTK 4 and libadwaita, compiled from the Mac app's own Swift sources. It keeps accounts in
 `~/.signet` in octez-client's format, works with a Ledger, and does sending, staking, baking,
-governance, multisig and dApps (Octez Connect) on layer 1. Etherlink and shielded tez are not
-ported yet.
+governance, multisig and dApps (Octez Connect) on layer 1, Etherlink (send, receive and the
+bridge) and shielded tez on the TzEL rollup.
 
 ## Install
 
