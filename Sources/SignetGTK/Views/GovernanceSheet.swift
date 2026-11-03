@@ -1,12 +1,19 @@
 import CAdwaita
 import Foundation
 
-/// Governance for an account we can sign for: on-chain protocol voting for a baker (upvote
-/// proposals in a proposal period, cast a ballot in the exploration and promotion votes). The
-/// GTK counterpart of upstream's `Views/GovernanceSheet.swift` and its `TezosGovernanceView`;
-/// the Etherlink tab (`EtherlinkGovernanceView`) is not ported.
+/// Governance for an account we can sign for: the Tezos tab is on-chain protocol voting for a
+/// baker (upvote proposals in a proposal period, cast a ballot in the exploration and promotion
+/// votes); the Etherlink tab, with Layer 2 on, is Etherlink's kernel-upgrade governance, for a
+/// baker or an account that is some baker's voting key (`EtherlinkGovernanceView`). The GTK
+/// counterpart of upstream's `Views/GovernanceSheet.swift`; the Tezos tab, upstream's
+/// `TezosGovernanceView`, is this class itself.
 @MainActor
 final class GovernanceSheet: Sheet {
+    enum Tab: String, CaseIterable {
+        case tezos = "Tezos"
+        case etherlink = "Etherlink"
+    }
+
     enum Mode: Equatable { case overview, confirm(GovernanceOperation), working(GovernanceOperation), done(hash: String, level: Int, GovernanceOperation) }
 
     private var mode: Mode = .overview { didSet { render() } }
@@ -19,15 +26,49 @@ final class GovernanceSheet: Sheet {
     private var newProposalField: Widget!
     private var upvoteButton: Widget?
     private var proposalProblem: Widget?
+    private var tab: Tab = .tezos
+    private let tabs = Widget(adw_toggle_group_new()!)
+    private var etherlink: EtherlinkGovernanceView?
 
     init(model: WalletViewModel) {
         wallet = model.selectedWallet
         super.init(model: model, width: 560)
-        content.setChildren([Sheet.accountTitle("Governance", wallet: wallet).root, body])
+        for candidate in Tab.allCases {
+            let toggle = adw_toggle_new()!
+            adw_toggle_set_label(toggle, candidate.rawValue)
+            adw_toggle_set_name(toggle, candidate.rawValue)
+            adw_toggle_group_add(tabs.opaque, toggle)
+        }
+        // An account that cannot vote on Tezos (a voting key that is not a baker) opens on Etherlink.
+        let showsTabs = model.canGovernEtherlink
+        if showsTabs, model.delegateInfo?.isBaker != true { tab = .etherlink }
+        adw_toggle_group_set_active_name(tabs.opaque, tab.rawValue)
+        tabs.isVisible = showsTabs
+        Signals.connect(tabs, "notify::active-name") { [unowned self] in
+            guard let name = adw_toggle_group_get_active_name(self.tabs.opaque),
+                  let chosen = Tab(rawValue: String(cString: name)), chosen != self.tab else { return }
+            self.show(chosen)
+        }
+        content.setChildren([Sheet.accountTitle("Governance", wallet: wallet).root, tabs, body])
         passphraseField = Form.password("Password for “\(wallet?.alias ?? "")”", onChange: { [unowned self] in self.updateButtons() })
         newProposalField = Form.entry("Or a new proposal hash (P…)", monospaced: true, onChange: { [unowned self] in self.updateUpvote() })
-        render()
+        show(tab)
         Task { await load() }
+    }
+
+    /// The tab's view in the body; each tab keeps its state while the other is shown.
+    private func show(_ tab: Tab) {
+        self.tab = tab
+        setError(nil)
+        switch tab {
+        case .tezos:
+            render()
+        case .etherlink:
+            let view = etherlink ?? EtherlinkGovernanceView(model: model, sheet: self)
+            etherlink = view
+            body.setChildren([view.root])
+            view.activate()
+        }
     }
 
     private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
@@ -42,6 +83,7 @@ final class GovernanceSheet: Sheet {
     }
 
     private func render() {
+        guard tab == .tezos else { return }
         canClose = true
         setBusy(nil)
         var children: [Widget] = []
@@ -206,6 +248,7 @@ final class GovernanceSheet: Sheet {
     // MARK: Buttons
 
     private func updateButtons() {
+        guard tab == .tezos else { return }
         switch mode {
         case .overview:
             setButtons([button("Done", isDefault: true) { [unowned self] in self.dismiss() }])
@@ -248,5 +291,8 @@ final class GovernanceSheet: Sheet {
         }
     }
 
-    override func closed() { Form.clear(passphraseField) }
+    override func closed() {
+        Form.clear(passphraseField)
+        etherlink?.closed()
+    }
 }

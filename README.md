@@ -25,7 +25,8 @@ that adds it.
 ## Build from source
 
 You need Swift 6 (tested with 6.4) and the development files for GTK 4, libadwaita,
-JavaScriptCore (WebKitGTK 6.0), hidapi and libwebp. These steps have been tried on Debian 13 and
+WebKitGTK 6.0 (its JavaScriptCore runs the Taquito bridge, its web view the Buy sheet's on-ramp),
+hidapi and libwebp. These steps have been tried on Debian 13 and
 Ubuntu 26.10.
 
 **1. System packages.** The first two lines are what Swift itself needs, the rest is for Signet:
@@ -33,8 +34,8 @@ Ubuntu 26.10.
 ```sh
 sudo apt install git curl gnupg binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
     libpython3-dev libxml2-dev libncurses-dev libz3-dev \
-    pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libhidapi-dev \
-    libwebp-dev librsvg2-common
+    pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libwebkitgtk-6.0-dev \
+    libhidapi-dev libwebp-dev librsvg2-common
 ```
 
 **2. Swift**, with [swiftly](https://www.swift.org/install/linux/), which installs it in
@@ -68,7 +69,7 @@ makes a debug build in `.build/debug`. To update later: `git pull && git submodu
 build again.
 
 Other distributions need the same libraries under their own names, for example on Fedora
-`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel hidapi-devel libwebp-devel`, and on Arch
+`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel webkitgtk6.0-devel hidapi-devel libwebp-devel`, and on Arch
 `gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`; `swiftly init` lists what Swift needs there.
 
 Run the tests with:

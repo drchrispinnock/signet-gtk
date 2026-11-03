@@ -1,9 +1,10 @@
 import CAdwaita
 import Foundation
 
-/// Send tez: compose (recipient + amount), confirm (you → them), then the result. The GTK
-/// counterpart of upstream's `Views/SendSheet.swift`, Tezos side only: the `ChainSidePicker`
-/// that sends on Etherlink instead is not ported.
+/// Send tez: compose (recipient + amount), confirm (you → them), then the result. With Layer 2
+/// on, the drop-down at the top left (`ChainSidePicker`) sends on Etherlink instead: the same
+/// account, through the Layer 2 Michelson node, to tz1, tz2 or tz3 accounts only. The GTK
+/// counterpart of upstream's `Views/SendSheet.swift`.
 @MainActor
 final class SendSheet: Sheet {
     /// Everything a side needs, captured together when the sheet opened (S16, S31): the network
@@ -17,25 +18,30 @@ final class SendSheet: Sheet {
     }
 
     private let sender: Wallet
+    private let wallets: [Wallet]
     private let layer1: SideContext
-    private let send: SendViewModel
-    private var network: Network { layer1.network }
+    private let layer2: SideContext?
+    private(set) var side: ChainSide = .tezos
+    private var send: SendViewModel
+    private var context: SideContext { side == .etherlink ? (layer2 ?? layer1) : layer1 }
+    private var network: Network { context.network }
+    var canSwitch: Bool { layer2 != nil && sender.address.isUsableOnEtherlink }
     /// Which step's widgets are on screen, so they are rebuilt only when the step changes.
     private var shownStep: ShownStep?
     private var compose: ComposeTransferView?
     private var confirm: ConfirmTransferView?
     private var result: TransferResultView?
+    private var stepTracker: Tracker?
 
     private enum ShownStep { case compose, confirm, result }
 
     init(model: WalletViewModel, sender: Wallet) {
         self.sender = sender
-        (layer1, _) = Self.capture(model)
-        send = Self.makeSend(model: model, sender: sender, wallets: model.wallets, context: layer1)
+        wallets = model.wallets
+        (layer1, layer2) = Self.capture(model)
+        send = Self.makeSend(model: model, sender: sender, wallets: wallets, context: layer1)
         super.init(model: model, width: 520)
-        trackers.append(Tracker { [unowned self] in self.showStep() })
-        // `.task(id: side)`.
-        Task { await send.recoverPending() }
+        follow()
     }
 
     /// Both sides as they are now; the Etherlink side exists only when its network and service
@@ -44,6 +50,22 @@ final class SendSheet: Sheet {
         let layer1 = SideContext(network: model.network, chain: model.chainService, spendable: model.tezBalance?.spendable, implicitAccountsOnly: false)
         guard let network = model.network.layer2, let chain = model.layer2Chain else { return (layer1, nil) }
         return (layer1, SideContext(network: network, chain: chain, spendable: model.etherlinkSpendable, implicitAccountsOnly: true))
+    }
+
+    /// `.onChange(of: side)`: a new `SendViewModel` on the other side's context.
+    func switchSide(to side: ChainSide) {
+        guard side != self.side else { return }
+        self.side = side
+        send = Self.makeSend(model: model, sender: sender, wallets: wallets, context: context)
+        shownStep = nil
+        follow()
+    }
+
+    /// Follows the current `SendViewModel`'s step (`.task(id: side)` recovers its pending work).
+    private func follow() {
+        stepTracker = Tracker { [unowned self] in self.showStep() }
+        let send = send
+        Task { await send.recoverPending() }
     }
 
     private static func makeSend(model: WalletViewModel, sender: Wallet, wallets: [Wallet], context: SideContext) -> SendViewModel {
@@ -73,7 +95,7 @@ final class SendSheet: Sheet {
         setError(nil)
         setBusy(nil)
         switch step {
-        case .compose: compose = ComposeTransferView(sheet: self, send: send, network: network)
+        case .compose: compose = ComposeTransferView(sheet: self, send: send, network: network, side: side)
         case .confirm: confirm = ConfirmTransferView(sheet: self, send: send, network: network)
         case .result:
             result = TransferResultView(sheet: self, send: send, network: network) { [weak self] in
@@ -105,14 +127,19 @@ private final class ComposeTransferView {
     private var shownSuggestions: [Wallet] = []
     private var tracker: Tracker?
 
-    init(sheet: SendSheet, send: SendViewModel, network: Network) {
+    init(sheet: SendSheet, send: SendViewModel, network: Network, side: ChainSide) {
         self.sheet = sheet
         self.send = send
         self.network = network
+        let picker = ChainSidePicker(side: side, canSwitch: sheet.canSwitch) { [unowned sheet] in sheet.switchSide(to: $0) }
         let proceed: @MainActor () -> Void = { [send] in if send.canProceed { Task { await send.proceedToConfirm() } } }
 
-        var from = [AccountAvatarView(address: send.sender.address, size: 24).root, UI.label(send.sender.alias),
-                    UI.label(send.sender.address.shortened(), classes: ["address", "dim-label"])]
+        // The alias and address give way before the row's title does.
+        let alias = UI.label(send.sender.alias)
+        let address = UI.label(send.sender.address.shortened(), classes: ["address", "dim-label"])
+        gtk_label_set_ellipsize(alias.opaque, PANGO_ELLIPSIZE_END)
+        gtk_label_set_ellipsize(address.opaque, PANGO_ELLIPSIZE_MIDDLE)
+        var from = [AccountAvatarView(address: send.sender.address, size: 24).root, alias, address]
         if let spendable = send.spendable {
             from.append(UI.label("\(AssetBalance.format(spendable, symbol: "tz")) spendable", classes: ["dim-label"]))
         }
@@ -139,7 +166,7 @@ private final class ComposeTransferView {
         Signals.connect(amountField, "changed") { [unowned self] in self.send.amountText = Form.text(self.amountField) }
 
         sheet.content.setChildren([
-            Sheet.title("Send tez"),
+            UI.hbox(spacing: 12, [picker.root, Sheet.title(side == .etherlink ? "Send tez on Etherlink" : "Send tez")]),
             Form.group([fromRow, recipientField, recipientRow, amountField]),
             passphraseRow,
         ])

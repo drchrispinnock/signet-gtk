@@ -18,13 +18,6 @@ let macOnly = [
 ].map { "upstream/Signet/\($0)" }
 
 let macOnlyTests = [
-    "ArtworkCacheTests.swift",
-    "ArtworkPolicyTests.swift",
-    "AuditRepairTests.swift",
-    "AvatarTests.swift",
-    "BuyWebViewTests.swift",
-    "MtPelerinTests.swift",
-    "NFTTests.swift",
     "QRCodeTests.swift",
     "TestHostIsolationTests.swift",
     "UpdaterTests.swift",
@@ -46,6 +39,9 @@ let package = Package(
         // WebP, which gdk-pixbuf reads only with a loader most systems lack: TzKT's avatars are WebP.
         .systemLibrary(name: "CWebP", path: "Sources/CWebP", pkgConfig: "libwebp",
                        providers: [.apt(["libwebp-dev"])]),
+        // WebKitGTK, for the on-ramp's widget inside the Buy sheet (`BuyWebView`).
+        .systemLibrary(name: "CWebKit", path: "Sources/CWebKit", pkgConfig: "webkitgtk-6.0",
+                       providers: [.apt(["libwebkitgtk-6.0-dev"])]),
         .systemLibrary(name: "CAdwaita", path: "Sources/CAdwaita", pkgConfig: "libadwaita-1",
                        providers: [.apt(["libadwaita-1-dev"])]),
         // Upstream's Models, Services and ViewModels compiled as they are, plus the GTK app and
@@ -53,7 +49,7 @@ let package = Package(
         // as on the Mac, so upstream's `@testable import Signet` tests run here unchanged.
         .executableTarget(
             name: "Signet",
-            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", .product(name: "Crypto", package: "swift-crypto")],
+            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", "CWebKit", .product(name: "Crypto", package: "swift-crypto")],
             path: ".",
             exclude: macOnly,
             sources: ["upstream/Signet/Models", "upstream/Signet/Services", "upstream/Signet/ViewModels", "Sources/SignetGTK"],
