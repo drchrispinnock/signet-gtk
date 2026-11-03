@@ -65,9 +65,14 @@ with the same `nativeReadersUseTheBoundedPath` failure. What differs, each behin
 - `getnameinfo` takes `size_t` lengths (upstream's `EndpointPolicy`).
 - The lock tests' python is `/usr/local/bin/python3`.
 - `--static-swift-stdlib` needs libexecinfo (`backtrace()`), linked by `Package.swift`.
+- Foundation makes a missing `~/.config` with a file's mode (`rw-rw-rw-`, no execute bit), after
+  which `UserDefaults` never saves (and other programs lose `~/.config`); `SignetApp.run` makes
+  it `0700` first. Foundation also writes the plist itself `rw-rw-rw-`, umask or not; the
+  directory's mode is what keeps it private.
 The README's FreeBSD section has the steps for users; keep the two in step.
 The test machine has no Xvfb, so the app was run on this machine's `:99` through the SSH
 connection: `ssh -R 6099:/tmp/.X11-unix/X99 …` and `DISPLAY=127.0.0.1:99 GSK_RENDERER=cairo` there.
+(`ssh -X` needs `xauth` on the FreeBSD side.)
 Ledger access on FreeBSD (devd rules, `usbhid`) has not been tried.
 
 ## Packaging

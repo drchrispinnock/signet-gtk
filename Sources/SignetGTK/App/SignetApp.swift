@@ -54,6 +54,11 @@ enum SignetApp {
         #else
         setrlimit(RLIMIT_CORE, &none)
         #endif
+        #if os(FreeBSD)
+        // Foundation on FreeBSD makes a missing ~/.config with a file's mode (rw-rw-rw-), which
+        // nothing can then enter, so preferences are never saved; make it properly first.
+        mkdir(g_get_user_config_dir(), 0o700)
+        #endif
 
         MainLoop.attachMainQueue()
         // G_APPLICATION_HANDLES_OPEN: a raw value, since GLib 2.90 imports the flags as an option

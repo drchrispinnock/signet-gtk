@@ -114,6 +114,30 @@ swift build -c release --static-swift-stdlib
 The tests run as on Linux too; two of them need `python3` (`sudo pkg install python3`). Using a
 Ledger on FreeBSD has not been tried yet.
 
+If the window comes up blank and the terminal fills with GTK warnings about labels needing a
+height of over a million pixels, no font is installed: `sudo pkg install dejavu`, quit Signet and
+start it again (a second launch only hands over to the one already running).
+
+If `~/.config` shows as `drw-rw-rw-` (`ls -ld ~/.config`), Signet cannot save its settings and
+other programs cannot read theirs there: Swift's Foundation on FreeBSD creates a missing
+`~/.config` without the directory's execute bit. Signet now creates it itself first, but one made
+by an older build or by the tests needs repairing once:
+
+```sh
+chmod 700 ~/.config
+```
+
+**Over SSH.** To run Signet on a FreeBSD machine with no desktop and show it on yours, the
+machine needs `xauth` for X11 forwarding (`sudo pkg install xauth`; without it sshd refuses with
+"No xauth program; cannot forward X11"). Then:
+
+```sh
+ssh -X user@freebsd-host
+GSK_RENDERER=cairo signet-gtk/.build/release/signet-gtk
+```
+
+`GSK_RENDERER=cairo` has GTK draw in software, since forwarded X has no GPU.
+
 ## Make the packages
 
 From a source checkout, after building once:
