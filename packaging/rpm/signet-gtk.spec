@@ -43,6 +43,11 @@ if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload-rules 2>/dev/null || :
     udevadm trigger --subsystem-match=usb --attr-match=idVendor=2c97 2>/dev/null || :
 fi
+# The signet:// handler (MimeType in the desktop entry).
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications 2>/dev/null || :
+
+%postun
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications 2>/dev/null || :
 
 %files
 %license /usr/share/doc/signet-gtk/copyright

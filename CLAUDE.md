@@ -202,7 +202,12 @@ test's mock is affected, not real requests.
   Folder", which opens the folder in the file manager.
 - Buy opens a widget provider (Mt Pelerin) in the browser as a direct link, address pre-filled
   and pre-validated as on the Mac; the in-app `BuyWebView` is not ported (WebKitGTK could do it).
-- `signet://` pairing links are not handled yet (needs a .desktop file and `G_APPLICATION_HANDLES_OPEN`).
+- `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)
+  and the app is `G_APPLICATION_HANDLES_OPEN`; its `open` signal hands each URI to upstream's
+  `handleIncomingURL`, and a second launch passes the link to the running Signet over D-Bus.
+  To try pairing without a real dApp, a page loading `@tezos-x/octez.connect-sdk`'s
+  `octez.connect.min.js` in headless Chrome can create a `DAppClient` and take the code from its
+  `PAIR_INIT` event (`p2pPeerInfo`), then `requestPermissions()`.
 - Preferences are written at once (`UserDefaults.synchronize()`): swift-corelibs-foundation only
   flushes them at a clean exit otherwise.
 - The window's content scrolls as a whole; the activity lists grow inside it rather than
