@@ -7,6 +7,9 @@
 %global _build_id_links none
 # The binary is stripped already; rpm's own post-install steps would only rewrite it.
 %global __os_install_post %{nil}
+# Debian's libcurl versions its symbols (CURL_OPENSSL_4); Fedora's and openSUSE's do not, so
+# that requirement could never be met there. libcurl.so.4()(64bit) still is required.
+%global __requires_exclude ^libcurl\\.so\\.4\\(CURL_
 
 Name:           signet-gtk
 Version:        %{pkg_version}
