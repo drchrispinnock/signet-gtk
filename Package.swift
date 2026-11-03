@@ -31,6 +31,14 @@ let hidapi = "hidapi-hidraw"
 let hidapi = "hidapi"
 #endif
 
+/// With `--static-swift-stdlib` the Swift runtime's `backtrace()` must be linked explicitly on
+/// FreeBSD, where it lives in libexecinfo rather than libc.
+#if os(FreeBSD)
+let platformLibraries: [LinkerSetting] = [.linkedLibrary("execinfo")]
+#else
+let platformLibraries: [LinkerSetting] = []
+#endif
+
 let package = Package(
     name: "signet-gtk",
     products: [.executable(name: "signet-gtk", targets: ["Signet"])],
@@ -73,7 +81,8 @@ let package = Package(
             swiftSettings: [
                 // Upstream reaches the C hashing through Xcode's bridging header; do the same.
                 .unsafeFlags(["-import-objc-header", "\(Context.packageDirectory)/Sources/CTzel/include/tzel_blake2s.h"]),
-            ]
+            ],
+            linkerSettings: platformLibraries
         ),
         // Upstream's tests, unchanged, less those that exercise Mac-only code (views, AppKit
         // images, WebKit). Each left out here waits on the GTK version of what it tests.
