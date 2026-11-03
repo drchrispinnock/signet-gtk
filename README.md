@@ -3,8 +3,8 @@
 Port of the [Signet](https://github.com/drchrispinnock/signet) Tezos wallet to Linux and other
 Unices: GTK 4 and libadwaita, compiled from the Mac app's own Swift sources. It keeps accounts in
 `~/.signet` in octez-client's format, works with a Ledger, and does sending, staking, baking,
-governance, multisig and dApps (Octez Connect) on layer 1. Etherlink and shielded tez are not
-ported yet.
+governance, multisig and dApps (Octez Connect) on layer 1, Etherlink (send, receive and the
+bridge) and shielded tez on the TzEL rollup.
 
 ## Install
 
@@ -77,6 +77,66 @@ Run the tests with:
 ```sh
 swift build --build-tests && swift test --skip-build --no-parallel
 ```
+
+### FreeBSD
+
+Signet builds and runs on FreeBSD with Swift's FreeBSD preview toolchain (see
+[swift.org/install](https://www.swift.org/install/)). These steps have been tried on FreeBSD 15.1
+on amd64, with a Swift 6.5 development snapshot made for FreeBSD 14.
+
+**1. Packages.** The first line is what the Swift toolchain needs (`compat14x-amd64` only when
+running a toolchain made for FreeBSD 14 on 15), the second is for Signet. GTK needs at least one
+font installed: with none, the window comes up blank.
+
+```sh
+sudo pkg install git curl sqlite3 libuuid compat14x-amd64 \
+    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp dejavu adwaita-icon-theme
+```
+
+**2. Swift.** The toolchain is a tarball holding a `usr` directory; unpack it anywhere and put its
+`usr/bin` on your path, for example:
+
+```sh
+mkdir ~/swift && tar xzf <toolchain>.tar.gz -C ~/swift
+export PATH=$HOME/swift/usr/bin:$PATH     # sh; for csh: set path = ($HOME/swift/usr/bin $path)
+swift --version
+```
+
+**3. Signet** builds the same way as on Linux:
+
+```sh
+git clone --recursive https://github.com/drchrispinnock/signet-gtk.git
+cd signet-gtk
+swift build -c release --static-swift-stdlib
+.build/release/signet-gtk
+```
+
+The tests run as on Linux too; two of them need `python3` (`sudo pkg install python3`). Using a
+Ledger on FreeBSD has not been tried yet.
+
+If the window comes up blank and the terminal fills with GTK warnings about labels needing a
+height of over a million pixels, no font is installed: `sudo pkg install dejavu`, quit Signet and
+start it again (a second launch only hands over to the one already running).
+
+If `~/.config` shows as `drw-rw-rw-` (`ls -ld ~/.config`), Signet cannot save its settings and
+other programs cannot read theirs there: Swift's Foundation on FreeBSD creates a missing
+`~/.config` without the directory's execute bit. Signet now creates it itself first, but one made
+by an older build or by the tests needs repairing once:
+
+```sh
+chmod 700 ~/.config
+```
+
+**Over SSH.** To run Signet on a FreeBSD machine with no desktop and show it on yours, the
+machine needs `xauth` for X11 forwarding (`sudo pkg install xauth`; without it sshd refuses with
+"No xauth program; cannot forward X11"). Then:
+
+```sh
+ssh -X user@freebsd-host
+GSK_RENDERER=cairo signet-gtk/.build/release/signet-gtk
+```
+
+`GSK_RENDERER=cairo` has GTK draw in software, since forwarded X has no GPU.
 
 ## Make the packages
 

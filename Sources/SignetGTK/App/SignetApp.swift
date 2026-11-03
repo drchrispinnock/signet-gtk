@@ -54,6 +54,11 @@ enum SignetApp {
         #else
         setrlimit(RLIMIT_CORE, &none)
         #endif
+        #if os(FreeBSD)
+        // Foundation on FreeBSD makes a missing ~/.config with a file's mode (rw-rw-rw-), which
+        // nothing can then enter, so preferences are never saved; make it properly first.
+        mkdir(g_get_user_config_dir(), 0o700)
+        #endif
 
         MainLoop.attachMainQueue()
         // G_APPLICATION_HANDLES_OPEN: a raw value, since GLib 2.90 imports the flags as an option
@@ -64,10 +69,9 @@ enum SignetApp {
             // WebKit takes the thread it is first set up on for the main thread, and the Buy
             // sheet's web view needs that to be GTK's. The bridge, made after startup, uses
             // JavaScriptCore (WebKit's engine) on a thread of its own, so WebKit is set up here
-            // first, with a web view made and dropped.
-            let primer = webkit_web_view_new()!
-            g_object_ref_sink(UnsafeMutableRawPointer(primer))
-            g_object_unref(UnsafeMutableRawPointer(primer))
+            // first, by making its default context (no web view: making and dropping one here
+            // crashed FreeBSD's WebKitGTK at launch about one time in four).
+            _ = webkit_web_context_get_default()
             Style.install()
             // The icon the package installs under the application id.
             gtk_window_set_default_icon_name("org.tezos.signet")
