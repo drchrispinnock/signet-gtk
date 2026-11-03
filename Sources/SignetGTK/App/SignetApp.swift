@@ -1,4 +1,5 @@
 import CAdwaita
+import CWebKit
 import Foundation
 
 /// The GTK counterpart of upstream's `SignetApp.swift`: builds the model, owns the application
@@ -53,16 +54,47 @@ enum SignetApp {
         #else
         setrlimit(RLIMIT_CORE, &none)
         #endif
+        #if os(FreeBSD)
+        // Foundation on FreeBSD makes a missing ~/.config with a file's mode (rw-rw-rw-), which
+        // nothing can then enter, so preferences are never saved; make it properly first.
+        mkdir(g_get_user_config_dir(), 0o700)
+        #endif
 
         MainLoop.attachMainQueue()
-        let app = Widget(adw_application_new("org.tezos.signet", G_APPLICATION_DEFAULT_FLAGS)!)
+        // G_APPLICATION_HANDLES_OPEN: a raw value, since GLib 2.90 imports the flags as an option
+        // set. The app opens signet:// links (`open` below); a link given to a second launch is
+        // passed to the running one, as on the Mac.
+        let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 1 << 2))!)
         Signals.connect(app, "startup") {
+            // WebKit takes the thread it is first set up on for the main thread, and the Buy
+            // sheet's web view needs that to be GTK's. The bridge, made after startup, uses
+            // JavaScriptCore (WebKit's engine) on a thread of its own, so WebKit is set up here
+            // first, by making its default context (no web view: making and dropping one here
+            // crashed FreeBSD's WebKitGTK at launch about one time in four).
+            _ = webkit_web_context_get_default()
             Style.install()
             // The icon the package installs under the application id.
             gtk_window_set_default_icon_name("org.tezos.signet")
         }
         Signals.connect(app, "activate") { activate(app) }
+        let open: @convention(c) (gpointer?, UnsafeMutablePointer<OpaquePointer?>?, gint, UnsafePointer<gchar>?, gpointer?) -> Void = { app, files, count, _, _ in
+            var urls: [URL] = []
+            for index in 0..<Int(max(count, 0)) {
+                guard let file = files?[index], let uri = g_file_get_uri(file) else { continue }
+                if let url = URL(string: String(cString: uri)) { urls.append(url) }
+                g_free(uri)
+            }
+            MainActor.assumeIsolated { SignetApp.openURLs(urls, app: Widget(app!)) }
+        }
+        g_signal_connect_data(app.raw, "open", unsafeBitCast(open, to: GCallback.self), nil, nil, GConnectFlags(rawValue: 0))
         return g_application_run(app.as(), CommandLine.argc, CommandLine.unsafeArgv)
+    }
+
+    /// `.onOpenURL`: signet://?type=tzip10&data=<pairing code>, what a dApp's wallet list opens
+    /// for desktop wallets. The window comes up first if this launch was only to open the link.
+    private static func openURLs(_ urls: [URL], app: Widget) {
+        activate(app)
+        for url in urls { model?.handleIncomingURL(url) }
     }
 
     private static func activate(_ app: Widget) {

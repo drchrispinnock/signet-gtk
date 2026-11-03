@@ -318,6 +318,112 @@ enum UI {
         g_signal_connect_data(UnsafeMutableRawPointer(gesture), "pressed", unsafeBitCast(handler, to: GCallback.self), popover.raw, nil, GConnectFlags(rawValue: 0))
         gtk_widget_add_controller(widget.pointer, gesture)
     }
+
+    /// One line of a menu built when it opens: an item, a line of explanation, or a divider.
+    enum MenuEntry {
+        case item(String, enabled: Bool = true, destructive: Bool = false, action: @MainActor () -> Void)
+        case note(String)
+        case separator
+    }
+
+    @MainActor private final class LiveMenu {
+        let popover: Widget
+        let list: Widget
+        let build: @MainActor () -> [MenuEntry]
+        init(popover: Widget, list: Widget, build: @escaping @MainActor () -> [MenuEntry]) {
+            self.popover = popover
+            self.list = list
+            self.build = build
+        }
+
+        func fill() {
+            var children: [Widget] = []
+            for entry in build() {
+                switch entry {
+                case .item(let title, let enabled, let destructive, let action):
+                    let item = UI.button(title, classes: ["flat", "menu-item"] + (destructive ? ["destructive-item"] : [])) { [popover] in
+                        gtk_popover_popdown(popover.as())
+                        action()
+                    }
+                    gtk_widget_set_halign(gtk_button_get_child(item.as()), GTK_ALIGN_START)
+                    item.isSensitive = enabled
+                    children.append(item)
+                case .note(let text):
+                    children.append(UI.label(text, classes: ["dim-label", "caption"], wrap: true).margins(top: 2, bottom: 4, start: 10, end: 10))
+                case .separator:
+                    if !children.isEmpty { children.append(UI.separator().margins(top: 4, bottom: 4)) }
+                }
+            }
+            list.setChildren(children)
+        }
+    }
+
+    /// A menu that opens where the widget is right-clicked, its entries built afresh each time
+    /// (`.contextMenu { … }` over state that changes, such as a selection).
+    static func contextMenu(_ widget: Widget, build: @escaping @MainActor () -> [MenuEntry]) {
+        let popover = Widget(gtk_popover_new()!)
+        let list = vbox(spacing: 0)
+        gtk_popover_set_child(popover.as(), list.pointer)
+        gtk_popover_set_has_arrow(popover.as(), 0)
+        gtk_widget_set_halign(popover.pointer, GTK_ALIGN_START)
+        gtk_widget_set_parent(popover.pointer, widget.pointer)
+        Signals.connect(widget, "destroy") { gtk_widget_unparent(popover.pointer) }
+        let menu = LiveMenu(popover: popover, list: list, build: build)
+        widget.retain(menu, key: "signet-live-menu")
+
+        let gesture = gtk_gesture_click_new()!
+        gtk_gesture_single_set_button(gesture, 3)   // GDK_BUTTON_SECONDARY
+        let handler: @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { _, _, x, y, data in
+            let menu = Unmanaged<LiveMenu>.fromOpaque(data!).takeUnretainedValue()
+            MainActor.assumeIsolated {
+                menu.fill()
+                var rect = GdkRectangle(x: Int32(x), y: Int32(y), width: 1, height: 1)
+                gtk_popover_set_pointing_to(menu.popover.as(), &rect)
+                gtk_popover_popup(menu.popover.as())
+            }
+        }
+        g_signal_connect_data(UnsafeMutableRawPointer(gesture), "pressed", unsafeBitCast(handler, to: GCallback.self),
+                              Unmanaged.passUnretained(menu).toOpaque(), nil, GConnectFlags(rawValue: 0))
+        gtk_widget_add_controller(widget.pointer, gesture)
+    }
+
+    /// The modifier keys held during a click.
+    struct ClickModifiers: OptionSet {
+        let rawValue: UInt32
+        static let shift = ClickModifiers(rawValue: 1 << 0)     // GDK_SHIFT_MASK
+        static let control = ClickModifiers(rawValue: 1 << 2)   // GDK_CONTROL_MASK
+    }
+
+    private final class ClickHandler {
+        let action: @MainActor (ClickModifiers, Double, Double) -> Void
+        init(_ action: @escaping @MainActor (ClickModifiers, Double, Double) -> Void) { self.action = action }
+    }
+
+    /// Runs `action` on a primary click with the modifiers held and where the click was.
+    static func onClick(_ widget: Widget, modifiers action: @escaping @MainActor (ClickModifiers, Double, Double) -> Void) {
+        let gesture = gtk_gesture_click_new()!
+        let box = Unmanaged.passRetained(ClickHandler(action)).toOpaque()
+        let handler: @convention(c) (OpaquePointer?, Int32, Double, Double, gpointer?) -> Void = { gesture, _, x, y, data in
+            let handler = Unmanaged<ClickHandler>.fromOpaque(data!).takeUnretainedValue()
+            let state = gtk_event_controller_get_current_event_state(gesture)
+            MainActor.assumeIsolated { handler.action(ClickModifiers(rawValue: state.rawValue & 0b101), x, y) }
+        }
+        g_signal_connect_data(UnsafeMutableRawPointer(gesture), "released", unsafeBitCast(handler, to: GCallback.self), box, { data, _ in
+            Unmanaged<ClickHandler>.fromOpaque(data!).release()
+        }, GConnectFlags(rawValue: 0))
+        gtk_widget_add_controller(widget.pointer, gesture)
+    }
+
+    /// Opens the folder holding `file` in the file manager, with the file selected where the
+    /// file manager can (`NSWorkspace.activateFileViewerSelecting` upstream).
+    static func reveal(_ file: URL, from widget: Widget) {
+        let launcher = gtk_file_launcher_new(g_file_new_for_path(file.path))!
+        let window = gtk_widget_get_root(widget.pointer).map { UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWindow.self) }
+        gtk_file_launcher_open_containing_folder(launcher, window, nil, { source, result, _ in
+            gtk_file_launcher_open_containing_folder_finish(OpaquePointer(source), result, nil)
+            g_object_unref(source)
+        }, nil)
+    }
 }
 
 // MARK: - Signals
@@ -339,9 +445,11 @@ enum Signals {
             let box = Unmanaged<Box>.fromOpaque(data!).takeUnretainedValue()
             MainActor.assumeIsolated { box.action() }
         }
+        // GLib 2.90 marks GConnectFlags a flag enum, which Swift imports as an option set without
+        // the C names, so the flag is given by value.
         g_signal_connect_data(instance.raw, signal, unsafeBitCast(handler, to: GCallback.self), box, { data, _ in
             Unmanaged<Box>.fromOpaque(data!).release()
-        }, G_CONNECT_SWAPPED)
+        }, GConnectFlags(rawValue: 2))  // G_CONNECT_SWAPPED
     }
 }
 

@@ -1,11 +1,10 @@
 import CAdwaita
 import Foundation
 
-/// Networks: which node Signet talks to on each network, and the TzKT API, block explorer and
-/// faucet links it uses there. Opened from the burger menu and from the network badge; the
-/// network in use is switched with the badge, not here. The GTK counterpart of upstream's
-/// `Views/NetworksSheet.swift`, without its Layer 2 rows (the Etherlink node and governance
-/// contracts).
+/// Networks: which node Signet talks to on each network, the Layer 2 (Etherlink) node, and
+/// the TzKT API, block explorer and faucet links it uses there. Opened from the burger menu and
+/// from the network badge; the network in use is switched with the badge, not here. The GTK
+/// counterpart of upstream's `Views/NetworksSheet.swift`.
 @MainActor
 final class NetworksSheet: Sheet {
     /// The network whose node is being edited; starts on the one in use.
@@ -23,6 +22,18 @@ final class NetworksSheet: Sheet {
     private var nodeError: String?
     private var nodeWarning: NodeIdentity?
     private var nodeChecking = false
+    // Layer 2: the switch, the Michelson node and the governance contracts, in a group of
+    // their own under the network's node.
+    private let layer2 = Form.group([])
+    private var l2Toggle: Widget!
+    private let l2NodeEntry = Widget(gtk_entry_new()!)
+    private let l2NodeMessage = UI.label(wrap: true, xalign: 1)
+    private let l2NodeButtons = UI.hbox(spacing: 8)
+    private var l2NodeRow: Widget!
+    private var governanceFields: [SettingField] = []
+    private var l2NodeError: String?
+    private var l2NodeWarning: NodeIdentity?
+    private var l2NodeChecking = false
 
     init(model: WalletViewModel) {
         editingNetworkName = model.network.name
@@ -33,6 +44,7 @@ final class NetworksSheet: Sheet {
             guard Network.all.indices.contains(index) else { return }
             self.editingNetworkName = Network.all[index].name
             self.syncNodeText()
+            self.rebuildLayer2()
             self.rebuildLinks()
         }
         nodeEntry.classes("monospace")
@@ -41,12 +53,28 @@ final class NetworksSheet: Sheet {
         nodeMessage.isVisible = false
         let nodeRow = Form.stacked("Node", below: [nodeEntry, nodeMessage, nodeButtons.align(h: GTK_ALIGN_END)])
 
+        l2Toggle = Form.toggle("Enable Layer 2", isOn: false) { [unowned self] in
+            guard let base = self.editingNetwork else { return }
+            let on = Form.isOn(self.l2Toggle)
+            guard on != self.model.isL2Enabled(for: base) else { return }
+            self.model.setL2Enabled(on, for: base)
+            self.syncNodeText()
+            self.rebuildLayer2()
+        }
+        l2NodeEntry.classes("monospace")
+        PasswordEntry.setPlaceholder(l2NodeEntry, "https://…")
+        Signals.connect(l2NodeEntry, "changed") { [unowned self] in self.l2NodeWarning = nil; self.updateL2Node() }
+        Signals.connect(l2NodeEntry, "activate") { [unowned self] in self.applyL2Node() }
+        l2NodeMessage.isVisible = false
+        l2NodeRow = Form.stacked("Layer 2 Michelson node", below: [l2NodeEntry, l2NodeMessage, l2NodeButtons.align(h: GTK_ALIGN_END)])
+
         content.setChildren([
-            sectionHeader("Networks", icon: nodeHelpIcon), Form.group([networkPicker, nodeRow]),
+            sectionHeader("Networks", icon: nodeHelpIcon), UI.vbox(spacing: 12, [Form.group([networkPicker, nodeRow]), layer2]),
             sectionHeader("Links", icon: linksHelpIcon), links,
         ])
         setButtons([button("Done", isDefault: true) { [unowned self] in self.dismiss() }])
         syncNodeText()
+        rebuildLayer2()
         rebuildLinks()
         // `.onChange(of: model.network)`.
         trackers.append(Tracker { [unowned self] in
@@ -81,6 +109,11 @@ final class NetworksSheet: Sheet {
         }
         if base.expectedChainID != nil {
             text += " A new node is asked which chain it serves before it is used, and one on another chain is warned about."
+        }
+        if model.isL2Enabled(for: base) {
+            text += " With Layer 2 on, the dashboard shows each tz1, tz2 or tz3 account's balance on Etherlink, read from the Layer 2 Michelson node"
+            text += base.l2DefaultRPCURL.map { " (default \($0.absoluteString))." } ?? " you enter here."
+            text += " The slow and fast governance contracts are Etherlink's kernel-upgrade votes on layer 1 (\(base.defaultEtherlinkGovernance.isEmpty ? "none shipped for \(base.name)" : "mainnet's are shipped")); with one set, Governance gains an Etherlink tab for bakers and their voting keys. Leave a field empty to do without that process."
         }
         return text
     }
@@ -133,10 +166,11 @@ final class NetworksSheet: Sheet {
     }
 
     /// The warning under a node field: the node serves another chain, or could not be asked.
-    private func warning(_ identity: NodeIdentity, for base: Network) -> String {
+    private func warning(_ identity: NodeIdentity, for base: Network, layer: NodeMonitor.Layer = .one) -> String {
+        let name = layer == .two ? "\(base.name)'s Etherlink" : base.name
         switch identity {
         case .mismatch(let found, let expected):
-            return "This node serves chain \(found), not \(base.name) (\(expected)). Signet would show it in red and refuse to sign through it."
+            return "This node serves chain \(found), not \(name) (\(expected)). Signet would show it in red and refuse to sign through it."
         case .unchecked(let reason):
             return "Signet could not check which chain this node serves. \(reason)."
         case .unpinned, .matches:
@@ -147,10 +181,102 @@ final class NetworksSheet: Sheet {
     private func syncNodeText() {
         if let base = editingNetwork {
             gtk_editable_set_text(nodeEntry.opaque, model.nodeURL(for: base).nodeDisplayTextStandalone)
+            gtk_editable_set_text(l2NodeEntry.opaque, model.l2NodeURL(for: base)?.nodeDisplayTextStandalone ?? "")
         }
         nodeError = nil
         nodeWarning = nil
+        l2NodeError = nil
+        l2NodeWarning = nil
         updateNode()
+        updateL2Node()
+    }
+
+    // MARK: Layer 2
+
+    /// The switch, and while it is on the node and the two governance contracts.
+    private func rebuildLayer2() {
+        guard let base = editingNetwork else { return }
+        let on = model.isL2Enabled(for: base)
+        if Form.isOn(l2Toggle) != on { Form.setOn(l2Toggle, on) }
+        governanceFields = on ? EtherlinkGovernance.Process.allCases.map { process in
+            SettingField(
+                title: process.settingTitle,
+                current: { [model] in model.etherlinkGovernanceContract(for: process, in: base) },
+                defaultValue: base.defaultEtherlinkGovernance[process]?.value ?? "",
+                prompt: "KT1…",
+                monospaced: true,
+                apply: { [model] in model.setEtherlinkGovernanceContract($0, for: process, in: base) },
+                problem: { _ in "Enter the governance contract's address (KT1…), or leave it empty to do without this process." },
+                useDefault: { [model] in model.useDefaultEtherlinkGovernanceContract(for: process, in: base) }
+            )
+        } : []
+        Form.setRows(layer2, [l2Toggle] + (on ? [l2NodeRow] + governanceFields.map(\.root) : []))
+        updateNode()
+    }
+
+    private var l2NodeText: String { String(cString: gtk_editable_get_text(l2NodeEntry.opaque)) }
+
+    private var l2NodeIsDirty: Bool {
+        guard let base = editingNetwork else { return false }
+        return Network.nodeURL(from: l2NodeText) != model.l2NodeURL(for: base)
+    }
+
+    private func updateL2Node() {
+        guard let base = editingNetwork else { return }
+        var message: (String, String?)?
+        if let l2NodeError {
+            message = (l2NodeError, "error-text")
+        } else if let l2NodeWarning {
+            message = (warning(l2NodeWarning, for: base, layer: .two), "warning-text")
+        } else if l2NodeChecking {
+            message = ("Checking which chain the node serves…", nil)
+        } else if model.l2NodeURL(for: base) == nil {
+            message = ("Enter the Layer 2 Michelson node to use; the balance is not shown until then.", "warning-text")
+        }
+        l2NodeMessage.setClass("error-text", message?.1 == "error-text")
+        l2NodeMessage.setClass("warning-text", message?.1 == "warning-text")
+        UI.setText(l2NodeMessage, message?.0 ?? "")
+        l2NodeMessage.isVisible = message != nil
+
+        let useDefault = UI.button("Use Default") { [unowned self] in
+            self.model.useDefaultL2Node(for: base)
+            self.syncNodeText()
+        }
+        useDefault.isSensitive = !(base.l2DefaultRPCURL == nil || model.l2NodeURL(for: base) == base.l2DefaultRPCURL)
+        let second: Widget
+        if l2NodeWarning != nil {
+            second = UI.button("Use Anyway") { [unowned self] in
+                self.model.setL2Node(self.l2NodeText, for: base)
+                self.syncNodeText()
+            }
+        } else {
+            second = UI.button("Apply") { [unowned self] in self.applyL2Node() }
+            second.isSensitive = l2NodeIsDirty && !l2NodeChecking
+        }
+        l2NodeButtons.setChildren([useDefault, second])
+    }
+
+    private func applyL2Node() {
+        guard let base = editingNetwork else { return }
+        guard Network.nodeURL(from: l2NodeText) != nil else { l2NodeError = Network.nodeURLProblem(l2NodeText); updateL2Node(); return }
+        l2NodeError = nil
+        l2NodeWarning = nil
+        l2NodeChecking = true
+        updateL2Node()
+        let text = l2NodeText
+        Task {
+            let identity = await model.checkNode(text, for: base, layer: .two)
+            l2NodeChecking = false
+            defer { updateL2Node() }
+            guard text == l2NodeText, editingNetwork?.name == base.name else { return }
+            switch identity {
+            case .unpinned, .matches:
+                model.setL2Node(text, for: base)
+                syncNodeText()
+            case .mismatch, .unchecked:
+                l2NodeWarning = identity
+            }
+        }
     }
 
     /// The links beside the node, one field per service the network offers.

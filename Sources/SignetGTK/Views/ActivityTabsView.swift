@@ -3,13 +3,13 @@ import Foundation
 
 /// Bottom section of the dashboard: recent transactions or NFTs, chosen with a segmented control.
 /// The GTK counterpart of upstream's `Views/ActivityTabsView.swift`. The window's content
-/// scrolls as a whole, so the lists here grow rather than scroll on their own. The Tezos and
-/// Etherlink `LayerToggles` upstream shows while Layer 2 is on are not ported.
+/// scrolls as a whole, so the lists here grow rather than scroll on their own.
 @MainActor
 final class ActivityTabsView {
     let model: WalletViewModel
     let root: Widget
     private let toggles: Widget
+    private let layers: LayerToggles
     private let body = UI.vbox(spacing: 0)
     private var shownTab: WalletViewModel.ActivityTab?
     private var transactions: TransactionListView?
@@ -33,8 +33,16 @@ final class ActivityTabsView {
                   let tab = WalletViewModel.ActivityTab(rawValue: String(cString: name)) else { return }
             if model.activityTab != tab { model.activityTab = tab }
         }
-        root = UI.vbox(spacing: 10, [toggles, body])
+        layers = LayerToggles(model: model)
+        root = UI.vbox(spacing: 10, [UI.hbox(spacing: 12, [toggles, UI.hspacer(), layers.root]), body])
         trackers.append(Tracker { [unowned self] in self.update() })
+        trackers.append(Tracker { [unowned self] in
+            let filters = self.model.filtersLayers
+            self.layers.root.isVisible = filters
+            // `.frame(maxWidth: 400)`, narrower beside the layer toggles so the row still fits the
+            // narrowest window (480 less the margins).
+            self.toggles.size(width: filters ? 340 : 400)
+        })
     }
 
     private func update() {
@@ -58,6 +66,45 @@ final class ActivityTabsView {
             let view = NFTGridView(model: model)
             nfts = view
             body.setChildren([view.root])
+        }
+    }
+}
+
+/// Two logo buttons, Tezos and Etherlink, each lit while that layer's holdings and operations
+/// are shown. Beside the activity picker while Layer 2 is on, so every tab can be cut to one chain.
+@MainActor
+final class LayerToggles {
+    let model: WalletViewModel
+    let root = UI.hbox(spacing: 4)
+    private var buttons: [(layer: Int, name: String, button: Widget, logo: Widget)] = []
+    private var tracker: Tracker?
+
+    init(model: WalletViewModel) {
+        self.model = model
+        for (layer, side) in [(1, ChainSide.tezos), (2, ChainSide.etherlink)] {
+            let logo = ChainSidePicker.logo(side, size: 16)
+            let button = Widget(gtk_toggle_button_new()!)
+            gtk_button_set_child(button.as(), logo.pointer)
+            button.classes("flat", "layer-toggle").accessibleLabel(side.rawValue).align(v: GTK_ALIGN_CENTER)
+            Signals.connect(button, "toggled") { [model] in
+                let on = gtk_toggle_button_get_active(button.as()) != 0
+                guard on != model.shownLayers.contains(layer) else { return }
+                if on { model.shownLayers.insert(layer) } else { model.shownLayers.remove(layer) }
+            }
+            buttons.append((layer, side.rawValue, button, logo))
+            root.append(button)
+        }
+        root.accessibleLabel("Chains shown")
+        tracker = Tracker { [unowned self] in self.update() }
+    }
+
+    private func update() {
+        let shown = model.shownLayers
+        for (layer, name, button, logo) in buttons {
+            let on = shown.contains(layer)
+            if (gtk_toggle_button_get_active(button.as()) != 0) != on { gtk_toggle_button_set_active(button.as(), on ? 1 : 0) }
+            gtk_widget_set_opacity(logo.pointer, on ? 1 : 0.45)
+            button.tooltip(on ? "Showing \(name). Click to hide its transactions, tokens and NFTs." : "Show \(name)")
         }
     }
 }
@@ -411,7 +458,9 @@ enum TokenRowView {
     }
 }
 
-/// Grid of NFT thumbnails at the bottom of the default screen.
+/// Grid of NFT thumbnails at the bottom of the default screen. Tiles select like files in a
+/// file manager (click, Ctrl-click to add, Shift-click for a range) and a right-click opens the
+/// menu for the clicked tile, or for the whole selection when it is part of one.
 @MainActor
 final class NFTGridView {
     let model: WalletViewModel
@@ -419,6 +468,10 @@ final class NFTGridView {
     private let note = PortfolioStateNote()
     private let body = UI.vbox(spacing: 0)
     private var shown: (nfts: [NFT], empty: String?)?
+    private var tiles: [NFT.ID: Widget] = [:]
+    private var selection: Set<NFT.ID> = [] { didSet { showSelection() } }
+    /// Where a Shift-click range starts: the last tile clicked without Shift.
+    private var anchor: NFT.ID?
     private var tracker: Tracker?
 
     init(model: WalletViewModel) {
@@ -426,6 +479,8 @@ final class NFTGridView {
         root = UI.vbox(spacing: 10, [note.root, body]).size(height: 180)
         tracker = Tracker { [unowned self] in self.update() }
     }
+
+    private var nfts: [NFT] { shown?.nfts ?? [] }
 
     private func update() {
         let nfts = model.visibleNFTs
@@ -436,6 +491,9 @@ final class NFTGridView {
             : nil
         if let shown, shown.nfts == nfts, shown.empty == empty { return }
         shown = (nfts, empty)
+        tiles = [:]
+        // `.onChange(of: nfts.map(\.id))`: what is gone leaves the selection.
+        selection = selection.intersection(nfts.map(\.id))
         if let empty {
             body.setChildren([EmptyListText.make(empty)])
             return
@@ -450,9 +508,97 @@ final class NFTGridView {
         gtk_flow_box_set_max_children_per_line(grid.opaque, 12)
         grid.margins(top: 2, bottom: 2)
         for nft in nfts {
-            gtk_flow_box_append(grid.opaque, NFTTileView.make(nft: nft).pointer)
+            let tile = NFTTileView.make(nft: nft)
+            tiles[nft.id] = tile
+            UI.onClick(tile, modifiers: { [unowned self] modifiers, _, _ in self.click(nft, modifiers: modifiers) })
+            UI.contextMenu(tile, build: { [unowned self] in self.menu(for: nft, on: tile) })
+            gtk_flow_box_append(grid.opaque, tile.pointer)
         }
+        // A click between the tiles clears the selection.
+        UI.onClick(grid, modifiers: { [unowned self] _, x, y in
+            if gtk_flow_box_get_child_at_pos(grid.opaque, Int32(x), Int32(y)) == nil { self.selection = [] }
+        })
         body.setChildren([grid])
+        showSelection()
+    }
+
+    private func menu(for nft: NFT, on tile: Widget) -> [UI.MenuEntry] {
+        var deselect: (@MainActor () -> Void)?
+        if !selection.isEmpty { deselect = { [unowned self] in self.selection = [] } }
+        let all = Set(nfts.map(\.id))
+        return NFTContextMenu.entries(targets: targets(for: nft), model: model, from: tile, canSelectAll: selection.count < nfts.count,
+                                      selectAll: { [unowned self] in self.selection = all }, deselect: deselect)
+    }
+
+    private func showSelection() {
+        for (id, tile) in tiles { tile.setClass("selected-tile", selection.contains(id)) }
+    }
+
+    /// The tokens a menu on `nft` acts on: the selection when the tile is in it, else that tile alone.
+    private func targets(for nft: NFT) -> [NFT] {
+        selection.contains(nft.id) ? nfts.filter { selection.contains($0.id) } : [nft]
+    }
+
+    private func click(_ nft: NFT, modifiers: UI.ClickModifiers) {
+        if modifiers.contains(.control) {
+            if selection.contains(nft.id) { selection.remove(nft.id) } else { selection.insert(nft.id) }
+        } else if modifiers.contains(.shift), let anchor, let from = nfts.firstIndex(where: { $0.id == anchor }), let to = nfts.firstIndex(where: { $0.id == nft.id }) {
+            selection = Set(nfts[min(from, to)...max(from, to)].map(\.id))
+            return
+        } else {
+            selection = [nft.id]
+        }
+        anchor = nft.id
+    }
+}
+
+/// The right-click menu of one tile or of the selection: Transfer and Burn when the account
+/// can sign for its tokens (never for a selection spanning Tezos and Etherlink, or a soulbound
+/// token), Download for the artwork, then the links and copies of a single token, then selection.
+@MainActor
+enum NFTContextMenu {
+    static func entries(targets: [NFT], model: WalletViewModel, from widget: Widget, canSelectAll: Bool,
+                        selectAll: @escaping @MainActor () -> Void, deselect: (@MainActor () -> Void)?) -> [UI.MenuEntry] {
+        let layer = targets.first?.layer ?? 1
+        let sameLayer = Set(targets.map(\.layer)).count == 1
+        let transferable = targets.allSatisfy(\.isTransferable)
+        let canOperate = sameLayer && transferable && targets.count <= TokenTransferRequest.maxTokens && model.canTransferTokens(on: layer)
+        let plural = targets.count == 1 ? "" : " \(targets.count) NFTs"
+
+        var entries: [UI.MenuEntry] = [
+            .item("Transfer\(plural)…", enabled: canOperate) { model.nftOperation = NFTOperation(kind: .transfer, nfts: targets) },
+            .item("Burn\(plural)…", enabled: canOperate, destructive: true) { model.nftOperation = NFTOperation(kind: .burn, nfts: targets) },
+        ]
+        // Why Transfer and Burn are off, when they are.
+        let reason: String? = if !sameLayer { "Choose NFTs on one chain at a time" }
+            else if !transferable { targets.count == 1 ? "This token cannot be transferred" : "One of these tokens cannot be transferred" }
+            else if targets.count > TokenTransferRequest.maxTokens { "At most \(TokenTransferRequest.maxTokens) NFTs at once" }
+            else if !model.canTransferTokens(on: layer) { layer == 2 ? "Signet cannot sign for this account on Etherlink" : "Signet cannot sign for this account" }
+            else { nil }
+        if let reason { entries.append(.note(reason)) }
+        entries.append(.separator)
+        entries.append(.item("Download\(plural)…", enabled: targets.allSatisfy { !$0.artifactURLs.isEmpty || !$0.imageURLs.isEmpty }) {
+            model.nftDownload = NFTDownload(nfts: targets)
+        })
+        if targets.count == 1, let nft = targets.first {
+            let network = model.tokenNetwork(on: nft.layer)
+            if let url = network.explorerURL(token: nft.contract, id: nft.tokenId) {
+                entries.append(.item("Open in Explorer") { UI.open(url, from: widget) })
+            }
+            if let url = network.objktURL(token: nft.contract, id: nft.tokenId) {
+                entries.append(.item("Open on objkt.com") { UI.open(url, from: widget) })
+            }
+            if let url = nft.artifactURLs.first {
+                entries.append(.item(nft.isMoving ? "View Artwork (plays in the browser)" : "View Artwork") { UI.open(url, from: widget) })
+            }
+            entries.append(.separator)
+            entries.append(.item("Copy Contract Address") { UI.copyToClipboard(nft.contract, from: widget) })
+            entries.append(.item("Copy Token ID") { UI.copyToClipboard(nft.tokenId, from: widget) })
+        }
+        entries.append(.separator)
+        entries.append(.item("Select All", enabled: canSelectAll, action: selectAll))
+        if let deselect { entries.append(.item("Deselect All", action: deselect)) }
+        return entries
     }
 }
 
@@ -482,7 +628,7 @@ enum NFTTileView {
         if nft.balance > 1 {
             overlay(UI.label("×\(nft.balance)", classes: ["tile-chip", "caption-heading"]), on: frame, h: GTK_ALIGN_END, v: GTK_ALIGN_START)
         }
-        let name = UI.label(nft.name, classes: ["caption", "dim-label"])
+        let name = UI.label(nft.name, classes: ["caption", "dim-label", "nft-name"])
         gtk_label_set_ellipsize(name.opaque, PANGO_ELLIPSIZE_END)
         gtk_label_set_max_width_chars(name.opaque, 1)
         let tile = UI.vbox(spacing: 6, [frame, name]).size(width: size)

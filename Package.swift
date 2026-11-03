@@ -18,17 +18,26 @@ let macOnly = [
 ].map { "upstream/Signet/\($0)" }
 
 let macOnlyTests = [
-    "ArtworkCacheTests.swift",
-    "ArtworkPolicyTests.swift",
-    "AuditRepairTests.swift",
-    "AvatarTests.swift",
-    "BuyWebViewTests.swift",
-    "MtPelerinTests.swift",
-    "NFTTests.swift",
     "QRCodeTests.swift",
     "TestHostIsolationTests.swift",
     "UpdaterTests.swift",
 ]
+
+/// hidapi's pkg-config name: Linux ships one library per backend (hidraw is the kernel's own,
+/// needing no libusb); FreeBSD has a single libhidapi on top of usbhid.
+#if os(Linux)
+let hidapi = "hidapi-hidraw"
+#else
+let hidapi = "hidapi"
+#endif
+
+/// With `--static-swift-stdlib` the Swift runtime's `backtrace()` must be linked explicitly on
+/// FreeBSD, where it lives in libexecinfo rather than libc.
+#if os(FreeBSD)
+let platformLibraries: [LinkerSetting] = [.linkedLibrary("execinfo")]
+#else
+let platformLibraries: [LinkerSetting] = []
+#endif
 
 let package = Package(
     name: "signet-gtk",
@@ -41,11 +50,14 @@ let package = Package(
         .target(name: "CTzel", path: "Sources/CTzel", cSettings: [.unsafeFlags(["-O3"])]),
         .systemLibrary(name: "CJavaScriptCore", path: "Sources/CJavaScriptCore", pkgConfig: "javascriptcoregtk-6.0",
                        providers: [.apt(["libjavascriptcoregtk-6.0-dev"])]),
-        .systemLibrary(name: "CHidapi", path: "Sources/CHidapi", pkgConfig: "hidapi-hidraw",
+        .systemLibrary(name: "CHidapi", path: "Sources/CHidapi", pkgConfig: hidapi,
                        providers: [.apt(["libhidapi-dev"])]),
         // WebP, which gdk-pixbuf reads only with a loader most systems lack: TzKT's avatars are WebP.
         .systemLibrary(name: "CWebP", path: "Sources/CWebP", pkgConfig: "libwebp",
                        providers: [.apt(["libwebp-dev"])]),
+        // WebKitGTK, for the on-ramp's widget inside the Buy sheet (`BuyWebView`).
+        .systemLibrary(name: "CWebKit", path: "Sources/CWebKit", pkgConfig: "webkitgtk-6.0",
+                       providers: [.apt(["libwebkitgtk-6.0-dev"])]),
         .systemLibrary(name: "CAdwaita", path: "Sources/CAdwaita", pkgConfig: "libadwaita-1",
                        providers: [.apt(["libadwaita-1-dev"])]),
         // Upstream's Models, Services and ViewModels compiled as they are, plus the GTK app and
@@ -53,7 +65,7 @@ let package = Package(
         // as on the Mac, so upstream's `@testable import Signet` tests run here unchanged.
         .executableTarget(
             name: "Signet",
-            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", .product(name: "Crypto", package: "swift-crypto")],
+            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", "CWebKit", .product(name: "Crypto", package: "swift-crypto")],
             path: ".",
             exclude: macOnly,
             sources: ["upstream/Signet/Models", "upstream/Signet/Services", "upstream/Signet/ViewModels", "Sources/SignetGTK"],
@@ -69,7 +81,8 @@ let package = Package(
             swiftSettings: [
                 // Upstream reaches the C hashing through Xcode's bridging header; do the same.
                 .unsafeFlags(["-import-objc-header", "\(Context.packageDirectory)/Sources/CTzel/include/tzel_blake2s.h"]),
-            ]
+            ],
+            linkerSettings: platformLibraries
         ),
         // Upstream's tests, unchanged, less those that exercise Mac-only code (views, AppKit
         // images, WebKit). Each left out here waits on the GTK version of what it tests.

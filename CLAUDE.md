@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 **signet-gtk**: a port of **Signet**, the macOS Tezos wallet written in SwiftUI, to Linux first and
-then the BSDs. Linux is the primary target. FreeBSD should follow, since Swift has a FreeBSD port
-and preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
+then the BSDs. Linux is the primary target. FreeBSD builds and runs too (see "FreeBSD" below), with
+Swift's FreeBSD preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
 there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: hidapi for
 Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or
 syscalls outside `Sources/SignetGTK/Platform`.
@@ -14,8 +14,8 @@ syscalls outside `Sources/SignetGTK/Platform`.
 Stack: Swift 6 (installed with swiftly, `~/.local/share/swiftly/bin`), GTK4 + libadwaita for the
 UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the
 same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
-(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libhidapi-dev`, `libwebp-dev`,
-`pkg-config`).
+(`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libwebkitgtk-6.0-dev`,
+`libhidapi-dev`, `libwebp-dev`, `pkg-config`). WebKitGTK's web view is the Buy sheet's on-ramp page.
 
 The development machine is reached over SSH. The user's own desktop is XFCE on a TigerVNC X
 server at `DISPLAY=:1`: put the app there only when the user wants to see it, and never send it
@@ -50,6 +50,30 @@ tests. Single suites are fine either way. Network tests are opt-in as upstream: 
 `SIGNET_NETWORK_TESTS=1`. A crash in the test runner prints no backtrace by default; run
 `.build/out/Products/Debug-linux-x86_64/SignetTests-test-runner --testing-library swift-testing`
 under the toolchain's `lldb` to get one.
+
+## FreeBSD
+
+Tried on FreeBSD 15.1 (amd64) with a Swift 6.5-dev CI snapshot unpacked in `~/swift`
+(`export PATH=$HOME/swift/usr/bin:$PATH`; its own `lldb` does not load, the base system's
+`/usr/bin/lldb` does). Packages: `gtk4 libadwaita webkit2-gtk_60 hidapi webp pkgconf curl`, plus
+a font (`dejavu`; with no font at all GTK lays the window out tens of thousands of pixels tall and
+draws nothing) and `python3` for two lock tests (run as `/usr/local/bin/python3` there). `swift build` and `swift test` work as on Linux,
+with the same `nativeReadersUseTheBoundedPath` failure. What differs, each behind `#if`:
+- hidapi's pkg-config name is `hidapi` (Linux: `hidapi-hidraw`), chosen in `Package.swift`;
+  `CHidapi`'s module map names no library, so pkg-config's flags do the linking.
+- Ports install under `/usr/local`: upstream's `PublicHTTPClient` runs `/usr/local/bin/curl`.
+- `getnameinfo` takes `size_t` lengths (upstream's `EndpointPolicy`).
+- The lock tests' python is `/usr/local/bin/python3`.
+- `--static-swift-stdlib` needs libexecinfo (`backtrace()`), linked by `Package.swift`.
+- Foundation makes a missing `~/.config` with a file's mode (`rw-rw-rw-`, no execute bit), after
+  which `UserDefaults` never saves (and other programs lose `~/.config`); `SignetApp.run` makes
+  it `0700` first. Foundation also writes the plist itself `rw-rw-rw-`, umask or not; the
+  directory's mode is what keeps it private.
+The README's FreeBSD section has the steps for users; keep the two in step.
+The test machine has no Xvfb, so the app was run on this machine's `:99` through the SSH
+connection: `ssh -R 6099:/tmp/.X11-unix/X99 …` and `DISPLAY=127.0.0.1:99 GSK_RENDERER=cairo` there.
+(`ssh -X` needs `xauth` on the FreeBSD side.)
+Ledger access on FreeBSD (devd rules, `usbhid`) has not been tried.
 
 ## Packaging
 
@@ -105,7 +129,7 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `$XDG_CACHE_HOME/signet/artwork`. `Views/RemoteImage.swift` draws one.
   - `QRCode.swift`: a QR encoder in Swift (byte mode, all versions and levels) in place of Core
     Image, checked module for module against libqrencode. Its image is a `PlatformImage`.
-  - Not yet replaced: `UpdaterService`.
+  - Not replaced: `UpdaterService` (Sparkle; Signet is updated by whatever installed it).
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
     `@MainActor` code and `Task { @MainActor … }` run inside GTK's loop. Everything UI is on the
@@ -146,15 +170,36 @@ app share the module; upstream's types are `internal`, so they must). The produc
 
 Done so far: the window, the welcome screen, the launch disclaimer, the dashboard
 (`WalletIdentityView`, `NetworkBadgeMenu`, `AppMenuButton`, `ActionButtonsView`, `AssetListView`,
-`DelegateRowView`, `AccountNotOnChainView`, `ActivityTabsView`), and every layer 1 sheet: Create,
-Import, Connect Ledger, Rename, Export secret key, Proof of possession, Add address, Remember key,
-Forget, Send, Receive, Staking, Baking, Governance (Tezos tab), Faucet, Buy, Networks, Settings,
-the four multisig sheets, Connect to a dApp and the dApp request sheet. Send, Staking (delegate),
-Faucet, Import, Create and the multisig sheets have been run against Shadownet.
-Not ported, on purpose for now: everything Etherlink (`BridgeSheet`, `ChainSidePicker` and the
-Etherlink side of Send and Receive, `LayerToggles`, `EtherlinkGovernanceView`, the Layer 2 rows
-of Networks) and everything shielded (TzEL: `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`,
-`ShieldedAddressSheet`, `ShieldSettingsSheet`); their menu items still show the toast.
+`DelegateRowView`, `AccountNotOnChainView`, `ActivityTabsView` with `LayerToggles`), every layer 1
+sheet (Create, Import, Connect Ledger, Rename, Export secret key, Proof of possession, Add
+address, Remember key, Forget, Send, Receive, Staking, Baking, Governance, Faucet, Buy with its
+in-app `BuyWebView`, Networks, Settings, the four multisig sheets, Connect to a dApp and the dApp
+request sheet), Etherlink (`ChainSidePicker` and the Etherlink side of Send and Receive with the
+alias link, `BridgeSheet`, the Layer 2 rows of Networks with `SettingField`, the Etherlink tab of
+Governance, `EtherlinkGovernanceView`), and the NFT operations of 0.9.13 (selection and the
+right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTsSheet`), and
+shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with the address
+book, `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`; the pieces they share, the two sides
+and the hash line, are statics on `ShieldSheet`, and a pasted address goes into a
+`ShieldedJSONEditor`). Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+the Bridge deposit, the Etherlink alias link and Send on Etherlink have been run against
+Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
+real tez (NFT Download and the Buy widget have been run). The shielded sheets have been run
+against Shadownet's TzEL deployment as far as it goes without the operator's access token
+(settings, the token on file, a shielded address and the address book, the shield's rollup
+checks, pool and estimate, the unshield and transfer estimates); a shield, unshield or private
+transfer needs the token and has not been run here.
+- NFT tiles select with click, Ctrl-click and Shift-click (`UI.onClick(_:modifiers:)`), and a
+  right-click menu whose entries depend on that state is `UI.contextMenu(_:build:)`, rebuilt
+  each time it opens (`UI.MenuEntry`: items, a dimmed line of explanation, dividers).
+- WebKit takes the thread it is first set up on for its main thread, and the bridge runs
+  JavaScriptCore on a thread of its own: `SignetApp`'s `startup` makes WebKit's default context
+  before the bridge exists. Without it the Buy sheet's web view aborts the app (or, with only a
+  bare `JSContext` made first, never loads). It once made and dropped a web view instead, which
+  crashed FreeBSD's WebKitGTK at launch about one time in four. WebKitGTK says which frame a navigation is for only
+  at its response, so `BuyWebView` applies upstream's main-frame rule there
+  (`is_main_frame_main_resource`); its policy functions keep upstream's names and signatures,
+  with a `WKNavigationType` of its own, so `BuyWebViewTests` run here.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
 
@@ -200,9 +245,20 @@ test's mock is affected, not real requests.
 - Settings is a sheet over the window rather than a window of its own, and has no Updates
   section (Signet is updated by whatever installed it, not Sparkle). "Show in Finder" is "Open
   Folder", which opens the folder in the file manager.
-- Buy opens a widget provider (Mt Pelerin) in the browser as a direct link, address pre-filled
-  and pre-validated as on the Mac; the in-app `BuyWebView` is not ported (WebKitGTK could do it).
-- `signet://` pairing links are not handled yet (needs a .desktop file and `G_APPLICATION_HANDLES_OPEN`).
+- Buy shows a widget provider (Mt Pelerin) in a WebKitGTK web view, as the Mac does in a
+  WKWebView. A permission request carries no frame there, so camera and microphone go by the
+  page the main frame shows (WebKit itself keeps them from frames not delegated them).
+- Shielded settings' explanation of the TzEL services leaves out upstream's sentence that macOS
+  lets plain http through only for the hosts Signet ships with: Linux has no App Transport
+  Security, so any http service works.
+- NFT Download's "Show in Finder" is "Open Folder" (the file manager, with the first saved file
+  selected where it can); Ctrl-click stands in for Cmd-click when selecting tiles.
+- `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)
+  and the app is `G_APPLICATION_HANDLES_OPEN`; its `open` signal hands each URI to upstream's
+  `handleIncomingURL`, and a second launch passes the link to the running Signet over D-Bus.
+  To try pairing without a real dApp, a page loading `@tezos-x/octez.connect-sdk`'s
+  `octez.connect.min.js` in headless Chrome can create a `DAppClient` and take the code from its
+  `PAIR_INIT` event (`p2pPeerInfo`), then `requestPermissions()`.
 - Preferences are written at once (`UserDefaults.synchronize()`): swift-corelibs-foundation only
   flushes them at a clean exit otherwise.
 - The window's content scrolls as a whole; the activity lists grow inside it rather than

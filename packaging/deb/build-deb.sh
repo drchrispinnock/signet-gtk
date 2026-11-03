@@ -35,7 +35,7 @@ Installed-Size: $SIZE
 Section: utils
 Priority: optional
 Homepage: https://github.com/drchrispinnock/signet
-Depends: libc6 (>= 2.38), libgcc-s1, libstdc++6, libglib2.0-0t64 (>= 2.84), libgtk-4-1 (>= 4.18), libadwaita-1-0 (>= 1.7), libjavascriptcoregtk-6.0-1, libhidapi-hidraw0, libwebp7, libcurl4t64, libpango-1.0-0, libpangocairo-1.0-0, libharfbuzz0b, libcairo2, libcairo-gobject2, libgdk-pixbuf-2.0-0, libgraphene-1.0-0, libvulkan1, curl, librsvg2-common
+Depends: libc6 (>= 2.38), libgcc-s1, libstdc++6, libglib2.0-0t64 (>= 2.84), libgtk-4-1 (>= 4.18), libadwaita-1-0 (>= 1.7), libjavascriptcoregtk-6.0-1, libwebkitgtk-6.0-4, libsoup-3.0-0, libhidapi-hidraw0, libwebp7, libcurl4t64, libpango-1.0-0, libpangocairo-1.0-0, libharfbuzz0b, libcairo2, libcairo-gobject2, libgdk-pixbuf-2.0-0, libgraphene-1.0-0, libvulkan1, curl, librsvg2-common
 Recommends: fonts-noto-color-emoji
 Description: Tezos wallet for Linux (GTK port of Signet)
  Signet keeps Tezos accounts in octez-client's format in ~/.signet: create or
