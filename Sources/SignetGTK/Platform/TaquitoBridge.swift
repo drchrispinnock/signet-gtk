@@ -126,7 +126,7 @@ final class TaquitoBridge: @unchecked Sendable {
     /// a device still signing. `npm test` (signing-exports.cjs) checks the JavaScript sources against this
     /// list, so a new export that signs cannot be left out unnoticed.
     static let signingCalls: Set<String> = [
-        "sendTransfer", "sendStakingOperation", "sendRawOperation", "sendGovernanceOperation", "sendEtherlinkDeposit", "sendEtherlinkLink", "sendEtherlinkGovernance", "sendShieldDeposit", "sendOutboxExecution",
+        "sendTransfer", "sendStakingOperation", "sendRawOperation", "sendGovernanceOperation", "sendEtherlinkDeposit", "sendEtherlinkLink", "sendEtherlinkGovernance", "sendTokenTransfer", "sendShieldDeposit", "sendOutboxExecution",
         "injectSignedBytes", "multisigOriginate", "multisigSubmit", "multisigSign", "signPayload", "provePossession",
         "octezConnectExecute", "octezConnectSign", "ledgerGetAddress", "ledgerAppVersion",
     ]
@@ -316,11 +316,39 @@ final class TaquitoBridge: @unchecked Sendable {
             return nil
         }
         context.setObject(log, forKeyedSubscript: "__signet_log")
-        context.evaluateScript("""
+        context.evaluateScript(Self.consoleScript)
+    }
+
+    /// The JavaScript `console`, every method of which hands one formatted line to
+    /// `__signet_log`. Objects are serialized without their key material: a field whose name
+    /// says it holds a secret, key, seed or password is written `<redacted>`, and byte buffers
+    /// (typed arrays, and objects or arrays that are nothing but small integers, which is how
+    /// `JSON.stringify` writes a `Uint8Array`) are written as their length, since the SDK logs
+    /// whole transport objects with their communication key pair inside (audit K01/E02).
+    static let consoleScript = """
         var console = (function () {
+          var secret = /secret|private|seed|keypair|passphrase|password|mnemonic|^sk$/i;
+          function bytes(v) {
+            var n = 0;
+            for (var k in v) {
+              if (!/^[0-9]+$/.test(k) || typeof v[k] !== "number" || v[k] !== (v[k] & 255)) return -1;
+              n++;
+            }
+            return n >= 16 ? n : -1;
+          }
+          function scrub(key, v) {
+            if (key !== "" && secret.test(key) && v !== null && v !== undefined && typeof v !== "boolean") return "<redacted>";
+            if (v && typeof v === "object") {
+              if (ArrayBuffer.isView(v) || v instanceof ArrayBuffer) return "<" + v.byteLength + " bytes>";
+              var n = bytes(v);
+              if (n >= 0) return "<" + n + " bytes>";
+              if (v.type === "Buffer" && Array.isArray(v.data)) return "<" + v.data.length + " bytes>";
+            }
+            return v;
+          }
           function fmt(args) { return Array.prototype.map.call(args, function (a) {
             if (a instanceof Error) return a.message + (a.stack ? "\\n" + a.stack : "");
-            if (typeof a === "object") { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+            if (typeof a === "object" && a !== null) { try { return JSON.stringify(a, scrub); } catch (e) { return String(a); } }
             return String(a);
           }).join(" "); }
           return {
@@ -340,8 +368,7 @@ final class TaquitoBridge: @unchecked Sendable {
             time: function () {}, timeEnd: function () {}, timeLog: function () {},
           };
         })();
-        """)
-    }
+        """
 
     private func installNatives(in context: JSContext) {
         let native = JSValue(newObjectIn: context)
@@ -610,11 +637,13 @@ final class TaquitoBridge: @unchecked Sendable {
     }
 
     /// A log line with anything that could be a secret or private content kept out: at most
-    /// `maxLineLength` characters, and hex or base58 runs long enough to be keys, signatures or
-    /// payloads replaced by their length (S11).
+    /// `maxLineLength` characters, hex or base58 runs long enough to be keys, signatures or
+    /// payloads replaced by their length, and UUIDs replaced (S11).
     static let maxLineLength = 1024
     static func redactedLine(_ line: String) -> String {
         var text = line.replacing(/[0-9a-fA-F]{48,}/) { "<\($0.output.count) hex chars>" }
+        // A UUID is how the SDK writes a replacement communication key's seed (audit K01/E01).
+        text = text.replacing(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/) { _ in "<uuid>" }
         text = text.replacing(/\b(edsk|edesk|spsk|spesk|p2sk|p2esk|BLsk|BLesk|mdsk|mdesk|edsig|spsig1|p2sig|BLsig|mdsig|sig)[1-9A-HJ-NP-Za-km-z]{20,}/) { "\($0.output.1)<redacted>" }
         if text.count > maxLineLength { text = String(text.prefix(maxLineLength)) + "…" }
         return text

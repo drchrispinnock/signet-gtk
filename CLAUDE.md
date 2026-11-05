@@ -107,7 +107,8 @@ running Signet use `dbus-run-session -- …/bin/signet-gtk`. The submodule URL i
 `Sources/SignetGTK`, into one executable module named `Signet` (as on the Mac, where views and
 app share the module; upstream's types are `internal`, so they must). The product is
 `signet-gtk`. Upstream's `SignetTests` compile unchanged against it as the `SignetTests` target
-(`@testable import Signet`).
+(`@testable import Signet`). The port's own tests are `Tests/SignetGTKTests` (target
+`SignetGTKTests`), mainly its copies of upstream policy checked against the pinned upstream.
 
 - Upstream reaches its C hashing (`tzel_blake2s.c`) through Xcode's bridging header; here
   `Sources/CTzel` compiles it and the same header is passed with `-import-objc-header`.
@@ -120,6 +121,10 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `@convention(block)`, one fetch session whose delegate routes events per task, and the log
     at `$XDG_STATE_HOME/signet/bridge.log`. Unlike the Mac, an exception thrown synchronously by
     a call is also kept in `context.exception`, so it fails the call instead of only being logged.
+    Ahead of upstream (audit of 5 November 2026, K01): the console (`consoleScript`) writes
+    fields named for secrets, keys, seeds or passwords as `<redacted>` and byte buffers as their
+    length, and `redactedLine` replaces UUIDs, the form of the SDK's replacement key seed. Keep
+    `signingCalls` equal to upstream's: `SignetGTKTests` compares it with the pinned file.
   - `LedgerHID+hidapi.swift`: hidapi in place of IOKit (the name avoids clashing with upstream's
     `LedgerHID.swift`, which still supplies `LedgerFraming` and `LedgerDevice`). Device ids are
     hidapi paths. Linux needs Ledger's udev rule (`20-hw1.rules`) for non-root access.
