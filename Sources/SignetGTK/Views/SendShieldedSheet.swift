@@ -24,6 +24,8 @@ final class SendShieldedSheet: Sheet {
     private var estimateTask: Task<Void, Never>?
     private var step: Step = .compose
     private var submitted: SendShieldedEstimate?
+    /// The unacknowledged transfer being handed to the operator again, while it is.
+    private var resubmitting: String?
 
     private let subtitle = UI.label(classes: ["dim-label"])
     private let compose = UI.vbox(spacing: 12)
@@ -205,8 +207,21 @@ final class SendShieldedSheet: Sheet {
                 UI.label(AssetBalance.format(Decimal(transfer.amount) / Mutez.perTez, symbol: "tz"), classes: ["numeric"]),
                 UI.label("to \(transfer.recipientName ?? Self.short(transfer.recipientFingerprint))", classes: ["dim-label"]),
                 UI.hspacer(),
-                UI.label(transfer.applied ? "Applied by the rollup" : "With the operator", classes: ["dim-label", "caption"]),
+                UI.label(transfer.applied ? "Applied by the rollup" : transfer.submitted ? "With the operator" : "Handed to the operator, no acknowledgement received",
+                         classes: ["dim-label", "caption"]),
             ]
+            if !transfer.applied, !transfer.submitted {
+                if resubmitting == transfer.id {
+                    let spinner = Widget(gtk_spinner_new()!)
+                    gtk_spinner_start(spinner.opaque)
+                    line.append(spinner)
+                } else {
+                    let again = UI.button("Submit again") { [unowned self] in Task { await self.resubmit(transfer.id) } }
+                    again.isSensitive = resubmitting == nil && model.canShield
+                    again.tooltip("Hands the same message to the operator again. The rollup cannot spend the notes twice, so a copy that landed after all is simply reported as a duplicate.")
+                    line.append(again)
+                }
+            }
             if !transfer.applied, transfer.created < Date().addingTimeInterval(-1800) {
                 let forget = UI.button("Forget") { [unowned self] in
                     self.setError(nil)
@@ -321,6 +336,15 @@ final class SendShieldedSheet: Sheet {
             step = .compose
         }
         changed()
+    }
+
+    private func resubmit(_ id: String) async {
+        setError(nil)
+        resubmitting = id
+        renderSent()
+        do { try await model.resubmitTransfer(id) } catch { setError(error.localizedDescription) }
+        resubmitting = nil
+        renderSent()
     }
 
     override func closed() {

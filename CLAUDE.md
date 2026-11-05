@@ -57,8 +57,8 @@ Tried on FreeBSD 15.1 (amd64) with a Swift 6.5-dev CI snapshot unpacked in `~/sw
 (`export PATH=$HOME/swift/usr/bin:$PATH`; its own `lldb` does not load, the base system's
 `/usr/bin/lldb` does). Packages: `gtk4 libadwaita webkit2-gtk_60 hidapi webp pkgconf curl`, plus
 a font (`dejavu`; with no font at all GTK lays the window out tens of thousands of pixels tall and
-draws nothing) and `python3` for two lock tests (run as `/usr/local/bin/python3` there). `swift build` and `swift test` work as on Linux,
-with the same `nativeReadersUseTheBoundedPath` failure. What differs, each behind `#if`:
+draws nothing) and `python3` for two lock tests (run as `/usr/local/bin/python3` there). `swift build` and `swift test` work as on Linux
+(last tried there before the audit fixes of November 2026). What differs, each behind `#if`:
 - hidapi's pkg-config name is `hidapi` (Linux: `hidapi-hidraw`), chosen in `Package.swift`;
   `CHidapi`'s module map names no library, so pkg-config's flags do the linking.
 - Ports install under `/usr/local`: upstream's `PublicHTTPClient` runs `/usr/local/bin/curl`.
@@ -107,7 +107,8 @@ running Signet use `dbus-run-session -- …/bin/signet-gtk`. The submodule URL i
 `Sources/SignetGTK`, into one executable module named `Signet` (as on the Mac, where views and
 app share the module; upstream's types are `internal`, so they must). The product is
 `signet-gtk`. Upstream's `SignetTests` compile unchanged against it as the `SignetTests` target
-(`@testable import Signet`).
+(`@testable import Signet`). The port's own tests are `Tests/SignetGTKTests` (target
+`SignetGTKTests`), mainly its copies of upstream policy checked against the pinned upstream.
 
 - Upstream reaches its C hashing (`tzel_blake2s.c`) through Xcode's bridging header; here
   `Sources/CTzel` compiles it and the same header is passed with `-import-objc-header`.
@@ -120,6 +121,9 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `@convention(block)`, one fetch session whose delegate routes events per task, and the log
     at `$XDG_STATE_HOME/signet/bridge.log`. Unlike the Mac, an exception thrown synchronously by
     a call is also kept in `context.exception`, so it fails the call instead of only being logged.
+    The console script, `redactedLine` and `signingCalls` are upstream's text exactly (the audit
+    of 5 November 2026 found the list had drifted and NFT Transfer and Burn were refused);
+    `SignetGTKTests` compares `signingCalls` with the pinned file.
   - `LedgerHID+hidapi.swift`: hidapi in place of IOKit (the name avoids clashing with upstream's
     `LedgerHID.swift`, which still supplies `LedgerFraming` and `LedgerDevice`). Device ids are
     hidapi paths. Linux needs Ledger's udev rule (`20-hw1.rules`) for non-root access.
@@ -227,10 +231,6 @@ avoid too:
 - `FileManager.homeDirectoryForCurrentUser` ignores `$HOME`; upstream uses
   `FileManager.default.userHome`, which honours an absolute `$HOME` off the Mac.
 - `UserDefaults.standard` is `$XDG_CONFIG_HOME/signet-gtk.plist` (`~/.config` by default).
-
-Known test difference: `nativeReadersUseTheBoundedPath` fails because a `URLProtocol` registered
-globally does not reach the companion session made from `.shared`'s configuration. Only the
-test's mock is affected, not real requests.
 
 ## Differences from the Mac app
 
