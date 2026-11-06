@@ -93,6 +93,10 @@ Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of i
 - `packaging/arch/build-arch.sh`: `signet-gtk-bin`, a PKGBUILD over the release tarball (its
   download URL and checksum filled in from `PKGBUILD.in`), built here with makepkg; `dist/arch`
   holds the PKGBUILD and `.SRCINFO` for the AUR.
+- `apt/aptrepo.sh`: publishes the `.deb`s in `dist` to the apt repository
+  (`s3://apt.signetwallet.org`, from the reprepro tree in `apt/repos`; keys in `apt/keys`). The
+  user runs it by hand, since the packages are signed with their GPG key: Claude never runs or
+  automates it, and stops at a built `.deb`.
 
 `packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the last tag
 plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
