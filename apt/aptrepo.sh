@@ -11,7 +11,7 @@ root="release"
 maproot=""
 grepos=""
 arepos="s3://apt.signetwallet.org"
-aprofile=""
+aprofile="homes3"
 tidy=0
 
 targets="debian-13"
