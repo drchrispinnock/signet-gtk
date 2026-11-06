@@ -4,7 +4,7 @@
 <body>
 <pre>
 sudo apt install -y gpg curl
-curl -s "https://apt.signet.org/keys/signet.asc" | \
+curl -s "https://apt.signetwallet.org/keys/signet.asc" | \
     sudo gpg --dearmor -o /etc/apt/keyrings/signet.gpg
         
 echo "deb [signed-by=/etc/apt/keyrings/signet.gpg] https://apt.signet.org/debian trixie main" \
