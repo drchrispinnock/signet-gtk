@@ -1,0 +1,9 @@
+Origin: Signet
+Label: Signet
+Codename: trixie
+Suite: stable
+Architectures: amd64 arm64 
+Components: main
+Description: Signet package repository
+SignWith: 867D46AE151D860DCA62F18739AF78B567D9A004
+
