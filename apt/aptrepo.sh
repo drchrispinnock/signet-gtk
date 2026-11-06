@@ -6,11 +6,11 @@
 
 mapreposbycodename=0
 aptrepos="./repos"
-incoming="./incoming"
+incoming="../dist"
 root="release"
 maproot=""
 grepos=""
-arepos="s3"
+arepos="s3://apt.signetwallet.org"
 aprofile=""
 tidy=0
 
@@ -78,8 +78,8 @@ if [ "$tidy" = "1" ]; then
    acliops="$acliops --delete"
 fi
 
-if [ ! -z "$awsprofile" ]; then
-    preacliops="--profile $awsprofile"
+if [ ! -z "$aprofile" ]; then
+    preacliops="--profile $aprofile"
 fi
 
 which reprepro >/dev/null 2>&1
@@ -87,6 +87,9 @@ if [ "$?" != "0" ]; then
     echo "reprepro is not installed."
     exit 1
 fi
+
+mkdir -p $aptrepos
+if [ -f index.html ]; then cp index.html $aptrepos/index.html; fi
 
 mkdir -p $aptrepos/keys
 cp keys/*.asc $aptrepos/keys
@@ -96,7 +99,7 @@ for os in debian ubuntu; do
 
     if [ "$mapreposbycodename" = "0" ]; then
         mkdir -p $subdir/$os/conf
-            if [ ! -f apt/$os/distributions ]; then
+            if [ ! -f $os/distributions ]; then
                 echo "No config for $os"
                 continue
             fi
@@ -127,7 +130,8 @@ for os in debian ubuntu; do
 
         if [ "$resolve" = "$os" ]; then
             echo "===> $targ ($root - target $subdir/$os/$_code)"
-            reprepro -b $subdir/$os/$_code includedeb $codename $incoming/$maproot/$targ/*.deb
+# xxx            reprepro -b $subdir/$os/$_code includedeb $codename $incoming/$maproot/$targ/*.deb
+            reprepro -b $subdir/$os/$_code includedeb $codename $incoming/$maproot/*.deb
             reprepro -b $subdir/$os/$_code export $codename
         fi
 
@@ -140,6 +144,7 @@ for os in debian ubuntu; do
 
     if [ -n "$arepos" ]; then
         echo "Syncing $aptrespos to $arepos"
+        echo "aws $preacliops s3 sync $acliops $aptrepos/ $arepos"
         aws $preacliops s3 sync $acliops $aptrepos/ $arepos
     fi
 
