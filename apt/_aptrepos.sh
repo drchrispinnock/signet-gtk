@@ -4,15 +4,40 @@
 # (c) Chris Pinnock 2026
 # MIT License
 
-mapreposbycodename=0
+which reprepro >/dev/null 2>&1
+if [ "$?" != "0" ]; then
+    echo "reprepro is not installed."
+    exit 1
+fi
+
+which aws >/dev/null 2>&1
+if [ "$?" != "0" ]; then
+    echo "WARN: aws is not installed."
+fi
+
+which gcloud >/dev/null 2>&1
+if [ "$?" != "0" ]; then
+    echo "WARN: gcloud is not installed."
+fi
+
+# Dependent XX
+#
 aptrepos="./repos"
-incoming="../dist"
+incoming="./incoming"
+mapreposbycodename=0
+incomingbyplat=1
 root="release"
+tidy=0
+
+# Should be externals always
+#
 maproot=""
 grepos=""
-arepos="s3://apt.signetwallet.org"
-aprofile="homes3"
-tidy=0
+arepos=""
+aprofile=""
+
+hightargets="debian ubuntu"
+[ -f "hightargets" ] && targets=`cat hightargets`
 
 targets="debian-13"
 [ -f "platforms" ] && targets=`cat platforms`
@@ -39,6 +64,10 @@ while [ $# -gt 0 ]; do
             aprofile="$2"; shift; ;;
         --map-repos-by-codename)
             mapreposbycodename="1" ;;
+        --incoming-by-platform)
+            incomingbyplat="1" ;;
+        --no-incoming-by-platform)
+            incomingbyplat="0" ;;
         --no-map-repos-by-codename)
             mapreposbycodename="0" ;;
         --tidy)
@@ -65,10 +94,16 @@ case $root in
         maproot="DEVEL"
         ;;
     *)
-        echo "Root must be release or dev" && exit 2
-        ;;
+        _t=$(echo $root | tr '[:lower:]' '[:upper:]')
+        echo "$root"
+        subdir="$aptrepos/$_t"
+        maproot="$_t"
+    ;;
+
 esac
 
+# GCP and AWS options
+#
 gcliops=""
 acliops=""
 preacliops=""
@@ -82,19 +117,13 @@ if [ ! -z "$aprofile" ]; then
     preacliops="--profile $aprofile"
 fi
 
-which reprepro >/dev/null 2>&1
-if [ "$?" != "0" ]; then
-    echo "reprepro is not installed."
-    exit 1
-fi
-
 mkdir -p $aptrepos
 if [ -f index.html ]; then cp index.html $aptrepos/index.html; fi
 
 mkdir -p $aptrepos/keys
 cp keys/*.asc $aptrepos/keys
 
-for os in debian ubuntu; do
+for os in ${hightargets}; do
     echo "==> $os"
 
     if [ "$mapreposbycodename" = "0" ]; then
@@ -130,8 +159,9 @@ for os in debian ubuntu; do
 
         if [ "$resolve" = "$os" ]; then
             echo "===> $targ ($root - target $subdir/$os/$_code)"
-# xxx            reprepro -b $subdir/$os/$_code includedeb $codename $incoming/$maproot/$targ/*.deb
-            reprepro -b $subdir/$os/$_code includedeb $codename $incoming/$maproot/*.deb
+            _i="$incoming/$maproot/$targ/*.deb"
+            [ "$incomingbyplat" = "0" ] && _i="$incoming/$maproot/*.deb"
+            reprepro -b $subdir/$os/$_code includedeb $codename $_i
             reprepro -b $subdir/$os/$_code export $codename
         fi
 
