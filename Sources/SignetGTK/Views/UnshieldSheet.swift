@@ -19,6 +19,8 @@ final class UnshieldSheet: Sheet {
     private var submitted: UnshieldEstimate?
     private var execution: WithdrawalExecutionEstimate?
     private var executing: String?
+    /// The unacknowledged withdrawal being handed to the operator again, while it is.
+    private var resubmitting: String?
 
     private let sides = UI.hbox(spacing: 12)
     private let compose = UI.vbox(spacing: 12)
@@ -203,6 +205,24 @@ final class UnshieldSheet: Sheet {
             let execute = UI.button("Execute…") { [unowned self] in Task { await self.prepareExecution(status.id) } }
             execute.isSensitive = executing == nil && model.canShield
             return [execute]
+        case .unconfirmed:
+            var widgets: [Widget]
+            if resubmitting == status.id {
+                let spinner = Widget(gtk_spinner_new()!)
+                gtk_spinner_start(spinner.opaque)
+                widgets = [spinner]
+            } else {
+                let again = UI.button("Submit again") { [unowned self] in Task { await self.resubmit(status.id) } }
+                again.isSensitive = resubmitting == nil && model.canShield
+                again.tooltip("Hands the same message to the operator again. The rollup cannot spend the notes twice, so a copy that landed after all is simply reported as a duplicate.")
+                widgets = [again]
+            }
+            if status.withdrawal.created < Date().addingTimeInterval(-1800) {
+                let forget = UI.button("Forget") { [unowned self] in self.forget(status.id) }
+                forget.tooltip("Drops the record and frees its notes. Only for an unshield the operator never delivered; if it lands after all, the notes show as spent on the next refresh.")
+                widgets.append(forget)
+            }
+            return widgets
         case .submitted where status.withdrawal.created < Date().addingTimeInterval(-1800):
             let forget = UI.button("Forget") { [unowned self] in self.forget(status.id) }
             forget.tooltip("Drops the record and frees its notes. Only for an unshield the operator never delivered; if it lands after all, the notes show as spent on the next refresh.")
@@ -309,6 +329,15 @@ final class UnshieldSheet: Sheet {
     private func forget(_ id: String) {
         setError(nil)
         do { try model.forgetWithdrawal(id) } catch { setError(error.localizedDescription) }
+    }
+
+    private func resubmit(_ id: String) async {
+        setError(nil)
+        resubmitting = id
+        render()
+        do { try await model.resubmitWithdrawal(id) } catch { setError(error.localizedDescription) }
+        resubmitting = nil
+        render()
     }
 
     override func closed() {

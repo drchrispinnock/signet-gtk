@@ -87,5 +87,7 @@ let package = Package(
         // Upstream's tests, unchanged, less those that exercise Mac-only code (views, AppKit
         // images, WebKit). Each left out here waits on the GTK version of what it tests.
         .testTarget(name: "SignetTests", dependencies: ["Signet", .product(name: "Crypto", package: "swift-crypto")], path: "upstream/SignetTests", exclude: macOnlyTests),
+        // The port's own tests: its copies of upstream policy checked against the pinned upstream.
+        .testTarget(name: "SignetGTKTests", dependencies: ["Signet"], path: "Tests/SignetGTKTests"),
     ]
 )

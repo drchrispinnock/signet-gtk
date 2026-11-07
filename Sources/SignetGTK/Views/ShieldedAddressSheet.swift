@@ -82,6 +82,8 @@ final class ShieldedAddressSheet: Sheet {
                 scroller,
                 UI.label("Give the sender this JSON (Copy puts all of it on the clipboard) and read them the fingerprint so they can check what they pasted. Anything sent to it shows in your Shielded balance; nothing on the rollup links it to you.",
                          classes: ["dim-label"], wrap: true),
+                UI.label("The key that spends what arrives is kept unencrypted in the wallet directory and its backups, even when this account's own key has a password.",
+                         classes: ["dim-label"], wrap: true),
             ])
         } else if loading {
             let spinner = Widget(gtk_spinner_new()!)

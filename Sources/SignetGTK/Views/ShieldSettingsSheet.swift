@@ -23,6 +23,8 @@ final class ShieldSettingsSheet: Sheet {
     private var tokenEntry: Widget!
     private let tokenError = UI.label(classes: ["error-text"], wrap: true, xalign: 1)
     private let tokenButtons = UI.hbox(spacing: 8)
+    /// Upstream's orange `lock.open` label under the services when one is plain HTTP.
+    private let plainHTTPNote = Form.note("", icon: "channel-insecure-symbolic", style: "warning-text")
 
     init(model: WalletViewModel) {
         editingNetworkName = model.network.name
@@ -101,7 +103,7 @@ final class ShieldSettingsSheet: Sheet {
                 useDefault: { [unowned self] in self.model.useDefaultShieldedSetting(for: setting, in: base); self.renderSwitch() }
             )
         } : []
-        Form.setRows(servicesGroup, fields.map(\.root))
+        Form.setRows(servicesGroup, fields.map(\.root) + (on ? [plainHTTPNote.row] : []))
         for widget in [servicesHeader, servicesGroup, accessHeader, accessGroup] { widget.isVisible = on }
     }
 
@@ -117,7 +119,19 @@ final class ShieldSettingsSheet: Sheet {
             }
         }
         Form.setRows(switchGroup, rows)
+        let plain = Self.plainHTTP(model.shieldedSetting(.operatorURL, in: base), model.shieldedSetting(.rollupNode, in: base))
+        UI.setText(plainHTTPNote.label, plain ?? "")
+        plainHTTPNote.row.isVisible = plain != nil
         updateTokenButtons()
+    }
+
+    /// What to say when the operator or the rollup node is reached over plain HTTP: the
+    /// access token and every request travel unencrypted, and a network in between can
+    /// change the answers. The shipped Shadownet deployment offers nothing else (November 2026).
+    nonisolated static func plainHTTP(_ operatorURL: String, _ rollupNode: String) -> String? {
+        let plain = [("operator", operatorURL), ("rollup node", rollupNode)].filter { $0.1.lowercased().hasPrefix("http://") }.map(\.0)
+        guard !plain.isEmpty else { return nil }
+        return "The \(plain.joined(separator: " and ")) \(plain.count == 1 ? "is" : "are") reached over plain HTTP: the access token and every request travel unencrypted, and anything between you and the service can read or change them. Use https where the deployment offers it."
     }
 
     // MARK: Operator token

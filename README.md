@@ -1,4 +1,9 @@
-# signet-gtk
+<p align="center">
+  <img src="docs/images/signet-256.png" width="160" alt="Signet: a gold signet ring engraved with the Tezos ꜩ">
+</p>
+
+<h1 align="center">Signet GTK for Linux and FreeBSD</h1>
+
 
 Port of the [Signet](https://github.com/drchrispinnock/signet) Tezos wallet to Linux and other
 Unices: GTK 4 and libadwaita, compiled from the Mac app's own Swift sources. It keeps accounts in
