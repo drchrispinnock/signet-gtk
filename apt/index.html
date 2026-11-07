@@ -1,17 +1,54 @@
-<html>
-<head></head>
-
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Install Signet Wallet for GTK on Debian Linux 13 (trixie) from the Signet APT repository.">
+<meta name="theme-color" content="#000000">
+<title>Signet Wallet — Debian packages</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--fg:#f4f4f4;--muted:#b8b8b8;--line:#454545;--green:rgb(9,221,9);--gold:#e9c878}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--bg);color:var(--fg);font-family:Verdana,Geneva,sans-serif;font-size:15px;line-height:1.75}a{color:var(--green);text-underline-offset:4px}a:hover{color:#a3fba3}a:focus-visible,pre:focus-visible{outline:2px solid var(--green);outline-offset:5px}.skip{position:absolute;left:16px;top:-80px;background:#111;padding:8px 16px;z-index:2}.skip:focus{top:8px}.wrap{max-width:1200px;margin:0 auto;padding:0 28px}header{max-width:850px;margin:0 auto;text-align:center;padding:50px 24px 34px}.brand{display:inline-block;font-size:14px;letter-spacing:.05em;text-decoration:none}header .date{margin:0;color:var(--gold);font-size:13px;letter-spacing:.1em;text-transform:uppercase}h1{font-size:clamp(29px,4.6vw,47px);line-height:1.2;letter-spacing:-.035em;margin:12px 0 18px}.lede{max-width:710px;margin:16px auto;color:#d1d1d1;font-size:16px;line-height:1.8}nav{display:flex;flex-wrap:wrap;justify-content:center;gap:9px 26px;padding:18px 8px 26px;border-bottom:1px solid var(--line);font-size:13px}main{padding-bottom:55px}section{padding-top:42px}h2{font-size:25px;line-height:1.3;letter-spacing:-.02em;margin:0 0 14px}h3{font-size:17px;line-height:1.45;margin:30px 0 10px}p{margin:0 0 16px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-bottom:9px}.intro-note{border-left:3px solid var(--green);background:#0b100b;padding:20px 23px;margin-top:28px}.intro-note p:last-child{margin-bottom:0}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em;color:#e7e7e7;overflow-wrap:anywhere}pre{margin:18px 0 24px;padding:20px 23px;border:1px solid var(--line);border-radius:3px;background:#101010;overflow-x:auto;font-size:14px;line-height:1.8;tab-size:4}pre code{overflow-wrap:normal}.fine{font-size:12px;color:var(--muted)}footer{text-align:center;border-top:1px solid var(--line);padding:28px 22px 36px;color:var(--muted);font-size:12px}footer p{margin:4px 0}
+@media(max-width:700px){.wrap{padding:0 17px}header{padding:30px 20px 24px}.lede{font-size:14px}nav{gap:8px 18px;font-size:12px}h2{font-size:22px}section{padding-top:32px}.intro-note,pre{padding:16px 18px}pre{font-size:12px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{body{background:#fff;color:#111;font-size:10pt}.wrap{max-width:none;padding:0}header{padding:8px 0 18px}h1{font-size:28pt}nav,.skip{display:none}a,.brand,header .date{color:#184e1b}.lede,.fine,.eyebrow,footer{color:#333}.intro-note,pre{background:#fff;border-color:#888}pre{white-space:pre-wrap;overflow-wrap:anywhere;break-inside:avoid;font-size:9pt}code{color:#111}section{padding-top:25px}}
+</style>
+</head>
 <body>
-<pre>
-sudo apt install -y gpg curl
-curl -s "https://apt.signetwallet.org/keys/signet.asc" | \
+<a class="skip" href="#main">Skip to installation</a>
+<header>
+<a class="brand" href="https://signetwallet.org/">SIGNET WALLET</a>
+<p class="date">Debian Linux 13 · Trixie</p>
+<h1>Debian packages</h1>
+<p class="lede">Install Signet Wallet for GTK using the Signet APT repository.</p>
+</header>
+<div class="wrap">
+<nav aria-label="Package navigation"><a href="https://signetwallet.org/">Wallet home</a><a href="#apt-repository">APT repository</a><a href="https://apt.signetwallet.org/keys/signet.asc">Signing key</a></nav>
+<main id="main">
+<section id="apt-repository" aria-labelledby="apt-title">
+<p class="eyebrow">Linux · GTK</p>
+<h2 id="apt-title">APT repository</h2>
+<p>Follow these steps in a terminal on <strong>Debian Linux 13 (trixie)</strong> to install <code>signet-gtk</code>.</p>
+<div class="intro-note"><p>The repository is hosted at <a href="https://apt.signetwallet.org/">apt.signetwallet.org</a>. These instructions use <code>sudo</code> for commands that require administrator privileges.</p></div>
+<h3 id="key-title">1. Import the signing key</h3>
+<p>Install GPG and curl, then add the repository’s signing key to the APT keyring directory.</p>
+<pre tabindex="0" role="region" aria-labelledby="key-title"><code>sudo apt install -y gpg curl
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL "https://apt.signetwallet.org/keys/signet.asc" | \
     sudo gpg --dearmor -o /etc/apt/keyrings/signet.gpg
-        
-echo "deb [signed-by=/etc/apt/keyrings/signet.gpg] https://apt.signet.org/debian trixie main" \
-    | sudo tee /etc/apt/sources.list.d/signet.list
-
-apt update
-apt install -y signet-gtk
-
-</pre>
-
+sudo chmod 0644 /etc/apt/keyrings/signet.gpg</code></pre>
+<h3 id="source-title">2. Add the Debian Linux 13 repository</h3>
+<p>Create the APT source for Debian Linux 13 (trixie):</p>
+<pre tabindex="0" role="region" aria-labelledby="source-title"><code>echo "deb [signed-by=/etc/apt/keyrings/signet.gpg] https://apt.signetwallet.org/debian trixie main" \
+    | sudo tee /etc/apt/sources.list.d/signet.list</code></pre>
+<h3 id="install-title">3. Install Signet</h3>
+<p>Refresh the package list and install the GTK wallet:</p>
+<pre tabindex="0" role="region" aria-labelledby="install-title"><code>sudo apt update
+sudo apt install -y signet-gtk</code></pre>
+<p class="fine">Once the repository is configured, future package updates are available through APT.</p>
+</section>
+</main>
+</div>
+<footer><p><strong>Signet Wallet · Debian packages</strong></p><p>Debian 13 (trixie) / GTK</p><p><a href="https://signetwallet.org/">Back to Signet Wallet</a></p></footer>
+</body>
+</html>
