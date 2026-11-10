@@ -1,1 +1,1 @@
-bash aptrepos.sh --no-incoming-by-platform --incoming=../dist --aprofile homes3 --aws s3://apt.signetwallet.org
+bash _aptrepos.sh --no-incoming-by-platform --incoming=../dist --awsprofile homes3 --aws s3://apt.signetwallet.org
