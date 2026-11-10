@@ -190,8 +190,9 @@ shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with 
 book, `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`; the pieces they share, the two sides
 and the hash line, are statics on `ShieldSheet`, and a pasted address goes into a
 `ShieldedJSONEditor`). Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
-the Bridge deposit, the Etherlink alias link and Send on Etherlink have been run against
-Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
+the Bridge deposit, the Etherlink alias link, Send on Etherlink and a dApp on Shadownet's Layer 2
+(`tezosx-shadownet`: refused with Layer 2 off, then paired and an operation approved) have been
+run against Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
 real tez (NFT Download and the Buy widget have been run). The shielded sheets have been run
 against Shadownet's TzEL deployment as far as it goes without the operator's access token
 (settings, the token on file, a shielded address and the address book, the shield's rollup

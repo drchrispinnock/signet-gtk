@@ -112,8 +112,9 @@ final class DAppRequestSheet: Sheet {
             var rows = [picker,
                         Form.labeled("Network", value: networkType + (rpcURL.map { " (\($0.host() ?? ""))" } ?? "")).row,
                         Form.labeled("Permissions", value: scopes.map(scopeName).joined(separator: ", "), wrap: true).row]
-            if DAppRequest.network(forType: networkType, rpcURL: rpcURL) == nil {
-                rows.append(Form.note("Signet has no node for this network; operations from this dApp will fail.", icon: "dialog-warning-symbolic", style: "warning-text").row)
+            if dapps.network(forType: networkType, rpcURL: rpcURL) == nil {
+                rows.append(Form.note(dapps.layer2Off(forType: networkType).map { "This is the Layer 2 of \($0.name), which is turned off, so Signet cannot connect to this dApp. Turn on Enable Layer 2 for \($0.name) in Networks, then connect again from the dApp." }
+                                      ?? "Signet has no node for this network; operations from this dApp will fail.", icon: "dialog-warning-symbolic", style: "warning-text").row)
             }
             rows.append(Form.note("The dApp will see this account's address and public key, and can ask you to approve operations and signatures. Nothing happens without your approval here.").row)
             return Form.group(rows)
@@ -223,12 +224,13 @@ final class DAppRequestSheet: Sheet {
     /// The network by name, and for a dApp-chosen endpoint the exact host, port and path it
     /// points at: a name is not a chain, so the user sees where the batch would really go (S12).
     private func networkRow(_ networkType: String, _ rpcURL: URL?) -> Widget {
-        guard let network = DAppRequest.network(forType: networkType, rpcURL: rpcURL) else {
-            return Form.labeled("Network", content: UI.label("\(networkType)\(rpcURL.map { " at \(DAppRequest.endpointDescription($0))" } ?? "") is not a network Signet will use",
+        guard let network = dapps.network(forType: networkType, rpcURL: rpcURL) else {
+            return Form.labeled("Network", content: UI.label(dapps.layer2Off(forType: networkType).map { "\(networkType) is the Layer 2 of \($0.name), which is turned off in Networks" }
+                                                             ?? "\(networkType)\(rpcURL.map { " at \(DAppRequest.endpointDescription($0))" } ?? "") is not a network Signet will use",
                                                          classes: ["warning-text"], wrap: true, xalign: 1))
         }
         var lines = [UI.label(network.name, xalign: 1)]
-        if network.chain == "custom" || !network.isUsingDefaultNode {
+        if network.chain == "custom" || !network.isUsingDefaultNode || network.layerNumber == 2 {
             lines.append(UI.label(DAppRequest.endpointDescription(network.rpcURL), classes: ["address", "dim-label", "caption"], xalign: 1))
         }
         if network.expectedChainID == nil {
@@ -274,12 +276,25 @@ final class DAppRequestSheet: Sheet {
             }
             again.isSensitive = !isWorking
             setButtons([dismissButton, again])
+        } else if layer2Off != nil {
+            // Nothing to connect to or approve while that Layer 2 is off: OK refuses the request.
+            let ok = button("OK", role: .prominent, isDefault: true) { [unowned self] in Task { await self.dapps.reject(self.request) } }
+            ok.isSensitive = !isWorking
+            setButtons([ok])
         } else {
             let reject = button("Reject", role: .cancel) { [unowned self] in Task { await self.dapps.reject(self.request) } }
             reject.isSensitive = !isWorking
             approveButton.isSensitive = !(isWorking || (request.isPermission && chosenWallet == nil) || (needsPassphrase && Form.text(passphraseField).isEmpty)
                                           || (request.isOperation && prepared?.requestID != request.id))
             setButtons([reject, approveButton])
+        }
+    }
+
+    /// The network whose Layer 2 this request is for while that Layer 2 is turned off.
+    private var layer2Off: Network? {
+        switch request {
+        case .permission(_, _, let type, _, _), .operation(_, _, let type, _, _, _): dapps.layer2Off(forType: type)
+        default: nil
         }
     }
 
