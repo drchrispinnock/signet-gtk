@@ -2,6 +2,8 @@ import CAdwaita
 import Foundation
 
 /// Shows the selected wallet's address as a QR code and text so someone can send tez to it.
+/// **The Etherlink side described below is switched off** (`EtherlinkAlias.isOffered`): the
+/// alias derivation changes in Etherlink 8.0, so the sheet shows the Tezos address only.
 /// With Layer 2 on, the logo at the top left has a drop-down beside it (`ChainSidePicker`) that
 /// switches to the account's address on Etherlink's EVM side (`EtherlinkAlias`). That address
 /// is only shown once it exists on chain (`EtherlinkAliasStatus.linked`): until the account has
