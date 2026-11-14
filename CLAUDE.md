@@ -183,7 +183,8 @@ sheet (Create, Import, Connect Ledger, Rename, Export secret key, Proof of posse
 address, Remember key, Forget, Send, Receive, Staking, Baking, Governance, Faucet, Buy with its
 in-app `BuyWebView`, Networks, Settings, the four multisig sheets, Connect to a dApp and the dApp
 request sheet), Etherlink (`ChainSidePicker` and the Etherlink side of Send and Receive with the
-alias link, `BridgeSheet`, the Layer 2 rows of Networks with `SettingField`, the Etherlink tab of
+alias link, the Receive side switched off with upstream's `EtherlinkAlias.isOffered` since 0.9.16
+because Etherlink 8.0 changes the alias derivation, `BridgeSheet`, the Layer 2 rows of Networks with `SettingField`, the Etherlink tab of
 Governance, `EtherlinkGovernanceView`), and the NFT operations of 0.9.13 (selection and the
 right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTsSheet`), and
 shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with the address
@@ -305,6 +306,7 @@ and tagging happen only when asked.
   as upstream's code is not forked.
 - **The Taquito bridge is shared, never forked.** All chain access, signing, Ledger APDUs, Octez
   Connect and key encryption run in upstream's JavaScript bundle
-  (`upstream/Signet/Resources/taquito-bridge.js`, built from `TaquitoBridge/src`), embedded
+  (`upstream/Signet/Resources/taquito-bridge.js`, built from `TaquitoBridge/src`; since 0.9.16 on
+  octez.js and Octez Connect 5 rather than Taquito, though the names stay), embedded
   unchanged. If the bridge needs a change, make it upstream.
 - User-facing text says "account" for a `Wallet`; "wallet" means the whole key directory and the app.
