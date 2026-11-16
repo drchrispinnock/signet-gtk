@@ -40,8 +40,11 @@ Ubuntu 26.10.
 sudo apt install git curl gnupg binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
     libpython3-dev libxml2-dev libncurses-dev libz3-dev \
     pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libwebkitgtk-6.0-dev \
-    libhidapi-dev libwebp-dev librsvg2-common
+    libhidapi-dev libwebp-dev librsvg2-common libzbar0t64
 ```
+
+libzbar is only opened when Signet runs: without it Signet works, but Scan QR code (which also
+needs a camera) does not show.
 
 **2. Swift**, with [swiftly](https://www.swift.org/install/linux/), which installs it in
 `~/.local/share/swiftly` and adds it to your path through `~/.profile`:
@@ -95,7 +98,7 @@ font installed: with none, the window comes up blank.
 
 ```sh
 sudo pkg install git curl sqlite3 libuuid compat14x-amd64 \
-    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp dejavu adwaita-icon-theme
+    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp zbar dejavu adwaita-icon-theme
 ```
 
 **2. Swift.** The toolchain is a tarball holding a `usr` directory; unpack it anywhere and put its

@@ -6,3 +6,6 @@
    libdispatch on every platform swift-corelibs-libdispatch supports. */
 extern int _dispatch_get_main_queue_handle_4CF(void);
 extern void _dispatch_main_queue_callback_4CF(void *msg);
+
+/* The recovery sheet is also drawn into a PDF in memory, for its tests. */
+#include <cairo-pdf.h>

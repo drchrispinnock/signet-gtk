@@ -40,6 +40,8 @@ final class SendSheet: Sheet {
         wallets = model.wallets
         (layer1, layer2) = Self.capture(model)
         send = Self.makeSend(model: model, sender: sender, wallets: wallets, context: layer1)
+        // An address that Scan QR code found is the recipient to start with.
+        if let scanned = model.sendPrefill { send.recipientText = scanned.value }
         super.init(model: model, width: 520)
         follow()
     }

@@ -4,8 +4,8 @@ import Foundation
 /// QR codes for the Receive and Buy sheets. Upstream draws them with Core Image's
 /// `CIQRCodeGenerator`; here the symbol is encoded in Swift (byte mode, any version, the four
 /// error-correction levels; the construction follows ISO/IEC 18004 as Project Nayuki's QR code
-/// generator lays it out), so no QR library is needed on Linux or the BSDs. Upstream's `decode`
-/// is for its tests only and has no counterpart.
+/// generator lays it out), so no QR library is needed to draw one. Reading codes back
+/// (`decode`, `decodeAll`) needs libzbar and is in `QRScanner.swift`.
 enum QRCode {
     /// A crisp QR code for `text`, about `size` pixels square, drawn with whole pixels per module.
     static func image(for text: String, size: CGFloat = 240, correction: String = "M") -> PlatformImage? {
