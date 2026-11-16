@@ -44,6 +44,7 @@ enum SignetApp {
 
     private static var model: WalletViewModel?
     private static var window: Widget?
+    private static var cameraWatcher: CameraWatcher?
 
     static func run() -> Int32 {
         // Session-only keys live in memory (`SessionKeyStore`); a core dump would write that
@@ -107,6 +108,8 @@ enum SignetApp {
         Appearance.stored.apply()
         let window = MainWindow.make(app: app, model: model)
         self.window = window
+        // Shows the Scan QR code items while a camera is attached.
+        cameraWatcher = CameraWatcher { [model] hasCamera in model.hasCamera = hasCamera }
         gtk_window_present(window.as())
         Disclaimer.presentIfWanted(over: window, app: app)
     }

@@ -7,6 +7,7 @@ import PackageDescription
 let macOnly = [
     "Services/TaquitoBridge.swift",
     "Services/QRCode.swift",
+    "Services/QRScanner.swift",
     "Services/ImageLoader.swift",
     "Services/ArtworkCache.swift",
     "Services/Appearance.swift",

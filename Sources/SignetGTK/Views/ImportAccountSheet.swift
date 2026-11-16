@@ -135,6 +135,19 @@ final class ImportAccountSheet: Sheet {
         updateAccountTitle()
         update()
         focus(secretKeyField)
+        // A key or phrase that Scan QR code found: the sheet opens on it, already filled in.
+        switch model.importPrefill {
+        case .secretKey(let key):
+            Form.setText(secretKeyField, key)
+        case .recoveryPhrase(let words):
+            adw_toggle_group_set_active_name(sourcePicker.opaque, Source.phrase.rawValue)
+            gtk_text_buffer_set_text(gtk_text_view_get_buffer(phraseView.as()), words, -1)
+        case nil: break
+        }
+        if model.importPrefill != nil {
+            model.importPrefill = nil
+            refreshPreview()
+        }
     }
 
     private var account: Int { Int(adw_spin_row_get_value(accountRow.opaque)) }

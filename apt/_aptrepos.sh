@@ -24,6 +24,7 @@ fi
 #
 aptrepos="./repos"
 incoming="./incoming"
+dir="."
 mapreposbycodename=0
 incomingbyplat=1
 root="release"
@@ -50,6 +51,8 @@ CODENAMES["ubuntu-2604"]="resolute"
 
 while [ $# -gt 0 ]; do
     case $1 in
+    	--aptdir)
+            dir="$2"; shift; ;;
         --aptrepos)
             aptrepos="$2"; shift; ;;
         --targets|--target|-T)
@@ -121,20 +124,20 @@ mkdir -p $aptrepos
 if [ -f index.html ]; then cp index.html $aptrepos/index.html; fi
 
 mkdir -p $aptrepos/keys
-cp keys/*.asc $aptrepos/keys
+cp $dir/keys/*.asc $aptrepos/keys
 
 for os in ${hightargets}; do
     echo "==> $os"
 
     if [ "$mapreposbycodename" = "0" ]; then
         mkdir -p $subdir/$os/conf
-            if [ ! -f $os/distributions ]; then
+            if [ ! -f $dir/$os/distributions ]; then
                 echo "No config for $os"
                 continue
             fi
 
-        cp $os/distributions $subdir/$os/conf
-        cp $os/options $subdir/$os/conf
+        cp $dir/$os/distributions $subdir/$os/conf
+        cp $dir/$os/options $subdir/$os/conf
     fi
 
     for targ in $targets; do
@@ -146,13 +149,13 @@ for os in ${hightargets}; do
         if [ "$mapreposbycodename" = "1" ]; then
             _code="$codename"
             mkdir -p $subdir/$os/$_code/conf
-            if [ ! -f $os/$_code/distributions ]; then
+            if [ ! -f $dir/$os/$_code/distributions ]; then
                 echo "No config for $os/$_code"
                 continue
             fi
 
-            cp $os/distributions $subdir/$os/$_code/conf
-            cp $os/options $subdir/$os/$_code/conf
+            cp $dir/$os/distributions $subdir/$os/$_code/conf
+            cp $dir/$os/options $subdir/$os/$_code/conf
         fi
 
         resolve=$(echo $targ | awk -F'-' '{print $1}')

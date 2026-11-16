@@ -1,8 +1,9 @@
 import CAdwaita
 import Foundation
 
-/// Saves the artwork of one or many NFTs into the wallet directory's `nfts` folder, a row per
-/// token with its progress, and opens the folder in the file manager when asked ("Show in
+/// Saves the artwork of one or many NFTs into the wallet directory's `nfts` folder (the
+/// account's own folder there when NFTs are arranged by address), a row per token with its
+/// progress, and opens the folder in the file manager when asked ("Show in
 /// Finder" upstream). Closing the sheet stops whatever is still downloading; what was saved
 /// stays. The GTK counterpart of upstream's `Views/DownloadNFTsSheet.swift`.
 @MainActor

@@ -84,7 +84,9 @@ package needs a Swift toolchain) and lays out what every format installs:
 Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of it:
 - `packaging/deb/build-deb.sh`: `dpkg-deb` alone (no fakeroot or debhelper). `Depends` is written
   by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's `PublicHTTPClient` runs
-  `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a library is added.
+  `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a library is added. libzbar
+  (Scan QR code, opened with `dlopen`) is in `Recommends`, and in the RPM's and Arch's weak
+  dependencies.
 - `packaging/rpm/build-rpm.sh` with `signet-gtk.spec`: rpmbuild packages the staged tree; rpm finds
   the library dependencies itself, so one RPM serves Fedora 42+ and openSUSE Tumbleweed.
 - `packaging/tarball/build-tarball.sh`: the staged tree with `install.sh` (`/usr/local`, `--user`
@@ -137,6 +139,14 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `$XDG_CACHE_HOME/signet/artwork`. `Views/RemoteImage.swift` draws one.
   - `QRCode.swift`: a QR encoder in Swift (byte mode, all versions and levels) in place of Core
     Image, checked module for module against libqrencode. Its image is a `PlatformImage`.
+  - `QRScanner.swift`: upstream's `QRScanner.swift` (Scan QR code) with libzbar in place of
+    AVFoundation and Vision, opened with `dlopen` (`ZBar`) so Signet starts without it; it also
+    gives `QRCode.decode`/`decodeAll`. Cameras are the `/dev/video*` nodes whose VIDIOC_QUERYCAP
+    says they capture; `CameraWatcher` watches `/dev`; `QRCaptureSession` runs zbar's own V4L2
+    video module on a thread, scanning each frame and offering frames for the preview.
+    `QRCamera.textsFromClipboard` reads GTK's clipboard (asynchronously, unlike NSPasteboard).
+    `hasCamera` is false without zbar, so the Scan QR code items stay hidden. The camera path
+    has not been run here: this machine has no camera (see "Trying Scan QR code" below).
   - Not replaced: `UpdaterService` (Sparkle; Signet is updated by whatever installed it).
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
@@ -190,7 +200,8 @@ right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTs
 shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with the address
 book, `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`; the pieces they share, the two sides
 and the hash line, are statics on `ShieldSheet`, and a pasted address goes into a
-`ShieldedJSONEditor`). Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+`ShieldedJSONEditor`), and 0.9.17's Scan QR code, recovery sheet and Settings' "Arrange NFTs by
+address". Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
 the Bridge deposit, the Etherlink alias link, Send on Etherlink and a dApp on Shadownet's Layer 2
 (`tezosx-shadownet`: refused with Layer 2 off, then paired and an operation approved) have been
 run against Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
@@ -212,6 +223,20 @@ transfer needs the token and has not been run here.
   with a `WKNavigationType` of its own, so `BuyWebViewTests` run here.
 - `macOnlyTests` in `Package.swift` lists upstream test files left out because they exercise
   Mac-only code; each returns once the GTK version of what it tests exists.
+- Scan QR code (0.9.17): `ScanQRSheet`, opened from the burger menu after Connect Ledger and
+  the welcome screen's "Import from QR code" while `model.hasCamera`. Its `onDismiss` is in
+  `WalletHomeView.presentSheets` (`routePendingScan`; Send's clears `sendPrefill`); Import
+  account, Add address and Send take their prefills as upstream. The Recovery Sheet
+  (`Views/RecoverySheet.swift`: upstream's model, then `RecoverySheetPainter` drawing each page
+  with cairo and Pango, QR codes as vectors) prints through `GtkPrintOperation`;
+  `RecoverySheetPrinter.pdfData` draws the same pages into a PDF 1.4 in memory for the tests
+  (`SignetGTKTests/RecoverySheetPrintTests`, which also scan the printed codes back).
+  Upstream's `QRScanTests` and `RecoverySheetTests` run here, less the NSPasteboard and PDFKit
+  tests (behind `#if canImport` on `claude@portable`).
+- Trying Scan QR code without a camera: make `CameraWatcher`'s report `true` for the run (do not
+  commit it), then use Choose Image… (with no window manager on `:99`, click into the file
+  chooser before typing a path). `magick -density 100 sheet.pdf[1] page.png` turns a recovery
+  sheet into an image to scan.
 
 ## Changing upstream
 
@@ -257,6 +282,14 @@ avoid too:
 - Shielded settings' explanation of the TzEL services leaves out upstream's sentence that macOS
   lets plain http through only for the hosts Signet ships with: Linux has no App Transport
   Security, so any http service works.
+- Scan QR code says "this computer's own screen" for "this Mac's own screen". Where macOS asks
+  for camera permission, Linux opens the device node or fails; the sheet then says the user
+  needs access to it (the video group) instead of offering Privacy Settings. Linux has no
+  preferred camera, so the first one is chosen.
+- The recovery sheet's "Printed … by Signet <version>" has no version: like upstream it reads
+  `CFBundleShortVersionString`, which a SwiftPM build lacks. It is laid out at the size the
+  print dialog's paper gives, and its title shrinks to stay on one line in fonts wider than
+  the Mac's.
 - NFT Download's "Show in Finder" is "Open Folder" (the file manager, with the first saved file
   selected where it can); Ctrl-click stands in for Cmd-click when selecting tiles.
 - `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)

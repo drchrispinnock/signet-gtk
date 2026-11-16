@@ -122,6 +122,12 @@ final class WalletHomeView {
             view.onClosed = { [weak self, model] in
                 self?.presented[sheet.action] = nil
                 if model[keyPath: sheet.flag] { model[keyPath: sheet.flag] = false }
+                switch sheet.action {
+                // `onDismiss:` upstream: what the scan found opens the next sheet.
+                case "scan-qr": model.routePendingScan()
+                case "send": model.sendPrefill = nil
+                default: break
+                }
             }
             view.present(over: root)
         }
@@ -213,6 +219,7 @@ final class WalletHomeView {
         case "governance": GovernanceSheet(model: model)
         case "baking": BakingSheet(model: model)
         case "connect-ledger": ConnectLedgerSheet(model: model)
+        case "scan-qr": ScanQRSheet(model: model)
         case "networks": NetworksSheet(model: model)
         case "bridge": BridgeSheet(model: model)
         case "shield": ShieldSheet(model: model)
@@ -319,6 +326,10 @@ final class NoWalletsView {
             StartOption.make(title: "Connect a Ledger", detail: "Use a key that stays on your hardware wallet.",
                              symbol: "media-removable-symbolic") { [model] in model.isPresentingConnectLedger = true },
         ]
+        if model.hasCamera {
+            rows.append(StartOption.make(title: "Import from QR code", detail: "Scan a secret key or a recovery phrase with the camera.",
+                                         symbol: "camera-photo-symbolic") { [model] in model.isPresentingScanQR = true })
+        }
         if hasOctezWallet {
             let count = model.importableWalletCount
             rows.append(StartOption.make(
