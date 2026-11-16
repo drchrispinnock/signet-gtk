@@ -23,7 +23,8 @@ final class AddAddressSheet: Sheet {
         }
         useSuggestion.tooltip("Name from the account's TzProfile")
         Form.addSuffix(useSuggestion, to: aliasField)
-        addressField = Form.entry("Address (tz1… or KT1…)", monospaced: true,
+        // An address that Scan QR code found is already filled in.
+        addressField = Form.entry("Address (tz1… or KT1…)", text: model.addAddressPrefill?.value ?? "", monospaced: true,
                                   onChange: { [unowned self] in self.addressChanged() },
                                   onSubmit: { [unowned self] in if self.canAdd { self.add() } })
         let form = Form.group([
@@ -34,6 +35,7 @@ final class AddAddressSheet: Sheet {
         addButton = button("Add", role: .prominent, isDefault: true) { [unowned self] in self.add() }
         setButtons([cancelButton(), addButton])
         focus(aliasField)
+        model.addAddressPrefill = nil
         addressChanged()
     }
 

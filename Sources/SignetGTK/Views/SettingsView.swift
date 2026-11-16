@@ -20,6 +20,7 @@ final class SettingsView: Sheet {
     private var backupSection: Widget!
     private var diagnosticsToggle: Widget!
     private var diagnosticsNote: Widget!
+    private var nftToggle: Widget!
 
     init(model: WalletViewModel) {
         super.init(model: model, width: 480)
@@ -86,6 +87,17 @@ final class SettingsView: Sheet {
             Form.stacked("Last backup", value: lastBackup, below: [backUpNow.align(h: GTK_ALIGN_END)]),
         ], footer: "The wallet files are copied here on every launch and after any key is created or renamed. Automatic copies are skipped when nothing has changed; Back Up Now always writes one. Only the newest generations are kept.")
 
+        // NFTs.
+        let arranges = NFTDownloadSettings.arrangesByAddress()
+        let nftNote = Form.note(Self.nftNote(arranges))
+        nftToggle = Form.toggle("Arrange NFTs by address", isOn: arranges) { [unowned self] in
+            let on = Form.isOn(self.nftToggle)
+            UserDefaults.standard.set(on, forKey: NFTDownloadSettings.arrangeByAddressKey)
+            UserDefaults.standard.synchronize()   // written now, not only at a clean exit
+            UI.setText(nftNote.label, Self.nftNote(on))
+        }
+        let nfts = UI.vbox(spacing: 6, [UI.label("NFTs", classes: ["heading"]), Form.group([nftToggle, nftNote.row])])
+
         // Developer.
         let armed = UserDefaults.standard.bool(forKey: DeveloperSettings.dappDiagnosticsKey)
         diagnosticsToggle = Form.toggle("Verbose dApp log on the next launch", isOn: armed) { [unowned self] in
@@ -96,9 +108,15 @@ final class SettingsView: Sheet {
         let developer = section(title: "Developer", rows: [diagnosticsToggle, diagnosticsNote],
                                 footer: "The bridge log (\(UI.tilde(TaquitoBridge.logFileURL))) never contains keys, signatures or message contents. The verbose dApp log adds the relay SDK's own debugging output, which includes decrypted dApp traffic; it is armed for one launch only.")
 
-        content.setChildren([Sheet.title("Settings"), appearance, walletSection, backupSection, developer])
+        content.setChildren([Sheet.title("Settings"), appearance, walletSection, backupSection, nfts, developer])
         setButtons([button("Done", isDefault: true) { [unowned self] in self.dismiss() }])
         trackers.append(Tracker { [unowned self] in self.update() })
+    }
+
+    private static func nftNote(_ arrangesByAddress: Bool) -> String {
+        arrangesByAddress
+            ? "Downloaded artwork goes into a folder named after the account's address, inside the wallet directory's nfts folder."
+            : "Downloaded artwork from every account goes into the wallet directory's nfts folder together."
     }
 
     private func section(title: String? = nil, rows: [Widget], footer: String) -> Widget {

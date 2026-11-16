@@ -121,6 +121,7 @@ enum Operations {
         Sheet(action: "create-account", title: "Create account", flag: \.isPresentingCreateWallet),
         Sheet(action: "import-account", title: "Import account", flag: \.isPresentingImportAccount),
         Sheet(action: "connect-ledger", title: "Connect Ledger", flag: \.isPresentingConnectLedger),
+        Sheet(action: "scan-qr", title: "Scan QR code", flag: \.isPresentingScanQR),
         Sheet(action: "rename-account", title: "Rename account", flag: \.isPresentingRenameWallet),
         Sheet(action: "export-key", title: "Export secret key", flag: \.isPresentingExportKey),
         Sheet(action: "prove-possession", title: "Create proof of possession", flag: \.isPresentingProofOfPossession),
@@ -217,7 +218,8 @@ enum Operations {
             .item("Create account…", action: "create-account")
             .item("Import account…", action: "import-account")
             .item("Connect Ledger…", action: "connect-ledger")
-            .item("Rename account…", action: "rename-account")
+        if model.hasCamera { menu.item("Scan QR code…", action: "scan-qr") }
+        menu.item("Rename account…", action: "rename-account")
             .item("Export secret key…", action: "export-key")
         if model.canProveSelectedKey { menu.item("Create proof of possession…", action: "prove-possession") }
         menu.section().item("Add address…", action: "add-address")

@@ -27,6 +27,8 @@ Requires:       curl
 # gdk-pixbuf's SVG loader, for the token logos.
 Requires:       (librsvg2 or gdk-pixbuf-loader-rsvg)
 Recommends:     (google-noto-color-emoji-fonts or noto-coloremoji-fonts)
+# libzbar, opened at run time (rpm cannot see it): Scan QR code shows only with it and a camera.
+Recommends:     (zbar-libs or libzbar0)
 
 %description
 Signet keeps Tezos accounts in octez-client's format in ~/.signet: create or

@@ -132,6 +132,10 @@ enum Style {
     .qr-box { padding: 12px; border-radius: 12px; background: white; border: 1px solid alpha(currentColor, 0.25); }
     .monospace text, .monospace { font-family: monospace; }
 
+    /* ScanQRSheet. */
+    .camera-box { border-radius: 10px; background: alpha(black, 0.85); color: alpha(white, 0.8); }
+    .scan-found { padding: 12px; border-radius: 10px; background: alpha(currentColor, 0.08); }
+
     .error-message { color: @error_color; }
     """
 
