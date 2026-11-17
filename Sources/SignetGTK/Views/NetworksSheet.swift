@@ -38,15 +38,14 @@ final class NetworksSheet: Sheet {
     init(model: WalletViewModel) {
         editingNetworkName = model.network.name
         super.init(model: model, width: 520)
-        networkPicker = Form.picker("Network", options: Network.all.map { $0.name + ($0.name == model.network.name ? "  (in use)" : "") },
-                                    selected: Network.all.firstIndex { $0.name == model.network.name } ?? 0) { [unowned self] in
-            let index = Form.selected(self.networkPicker)
-            guard Network.all.indices.contains(index) else { return }
-            self.editingNetworkName = Network.all[index].name
+        let picker = Self.networkPicker(model: model, editing: { [unowned self] in self.editingNetworkName }) { [unowned self] name in
+            self.editingNetworkName = name
             self.syncNodeText()
             self.rebuildLayer2()
             self.rebuildLinks()
         }
+        networkPicker = picker.row
+        trackers.append(picker.tracker)
         nodeEntry.classes("monospace")
         Signals.connect(nodeEntry, "changed") { [unowned self] in self.nodeWarning = nil; self.updateNode() }
         Signals.connect(nodeEntry, "activate") { [unowned self] in self.applyNode() }
@@ -67,6 +66,8 @@ final class NetworksSheet: Sheet {
         Signals.connect(l2NodeEntry, "activate") { [unowned self] in self.applyL2Node() }
         l2NodeMessage.isVisible = false
         l2NodeRow = Form.stacked("Layer 2 Michelson node", below: [l2NodeEntry, l2NodeMessage, l2NodeButtons.align(h: GTK_ALIGN_END)])
+        // Out of the group while the network being edited has Layer 2 off, and put back when it is on.
+        g_object_ref_sink(l2NodeRow.raw)
 
         content.setChildren([
             sectionHeader("Networks", icon: nodeHelpIcon), UI.vbox(spacing: 12, [Form.group([networkPicker, nodeRow]), layer2]),
@@ -81,6 +82,38 @@ final class NetworksSheet: Sheet {
             _ = self.model.network
             if self.editingNetworkName == self.model.network.name { self.syncNodeText() }
         })
+    }
+
+    isolated deinit { g_object_unref(l2NodeRow.raw) }
+
+    /// The Network picker of Networks and Shielded settings: `model.offeredNetworks`, the one in
+    /// use marked. Its list follows the model, as SwiftUI's does: Shadownet (Previewnet) comes and
+    /// goes with Shadownet's Layer 2 switch.
+    static func networkPicker(model: WalletViewModel, editing: @escaping @MainActor () -> String,
+                              onSelect: @escaping @MainActor (String) -> Void) -> (row: Widget, tracker: Tracker) {
+        final class Shown { var names: [String] = []; var options: [String] = []; var replacing = false }
+        let shown = Shown()
+        let row = Form.picker("Network", options: [])
+        Signals.connect(row, "notify::selected") {
+            // A new list selects its first entry before the one being edited is selected again.
+            guard !shown.replacing else { return }
+            let index = Form.selected(row)
+            guard shown.names.indices.contains(index), shown.names[index] != editing() else { return }
+            onSelect(shown.names[index])
+        }
+        let tracker = Tracker {
+            let names = model.offeredNetworks.map(\.name)
+            let inUse = model.network.name
+            let options = names.map { $0 + ($0 == inUse ? "  (in use)" : "") }
+            guard options != shown.options else { return }
+            (shown.names, shown.options) = (names, options)
+            shown.replacing = true
+            Form.setOptions(row, options, selected: names.firstIndex(of: editing()) ?? 0)
+            shown.replacing = false
+            // The network being edited has left the list (Shadownet's Layer 2 turned off).
+            if !names.contains(editing()), let first = names.first { onSelect(first) }
+        }
+        return (row, tracker)
     }
 
     /// `SectionHeader`: a title with an ⓘ that explains it on hover.

@@ -133,7 +133,7 @@ private final class ComposeTransferView {
         self.sheet = sheet
         self.send = send
         self.network = network
-        let picker = ChainSidePicker(side: side, canSwitch: sheet.canSwitch) { [unowned sheet] in sheet.switchSide(to: $0) }
+        let picker = ChainSidePicker(side: side, canSwitch: sheet.canSwitch, layer2Name: network.l2Name) { [unowned sheet] in sheet.switchSide(to: $0) }
         let proceed: @MainActor () -> Void = { [send] in if send.canProceed { Task { await send.proceedToConfirm() } } }
 
         // The alias and address give way before the row's title does.
@@ -168,7 +168,7 @@ private final class ComposeTransferView {
         Signals.connect(amountField, "changed") { [unowned self] in self.send.amountText = Form.text(self.amountField) }
 
         sheet.content.setChildren([
-            UI.hbox(spacing: 12, [picker.root, Sheet.title(side == .etherlink ? "Send tez on Etherlink" : "Send tez")]),
+            UI.hbox(spacing: 12, [picker.root, Sheet.title(side == .etherlink ? "Send tez on \(network.l2Name)" : "Send tez")]),
             Form.group([fromRow, recipientField, recipientRow, amountField]),
             passphraseRow,
         ])

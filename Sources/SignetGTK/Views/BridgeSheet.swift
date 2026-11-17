@@ -140,7 +140,7 @@ final class BridgeSheet: Sheet {
     private func side(_ chain: ChainSide, balance: String?, note: String) -> Widget {
         UI.vbox(spacing: 6, [
             ChainSidePicker.logo(chain, size: 56).align(h: GTK_ALIGN_CENTER),
-            UI.label(chain.rawValue, classes: ["heading"], xalign: 0.5),
+            UI.label(chain == .etherlink ? network.l2Name : chain.rawValue, classes: ["heading"], xalign: 0.5),
             UI.label(balance ?? "—", classes: ["numeric"], xalign: 0.5),
             UI.label(note, classes: ["dim-label", "caption"], xalign: 0.5),
         ]).classes("bridge-side").expand(h: true)
