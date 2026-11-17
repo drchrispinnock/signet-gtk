@@ -18,12 +18,16 @@ final class ChainSidePicker {
     private let logo = UI.hbox(spacing: 0)
     private let dropDown: Widget
     private(set) var side: ChainSide
+    /// What the Layer 2 side is called on this network ("Etherlink", or "Previewnet").
+    private let layer2Name: String
     private let onChange: @MainActor (ChainSide) -> Void
 
-    init(side: ChainSide = .tezos, canSwitch: Bool, onChange: @escaping @MainActor (ChainSide) -> Void) {
+    init(side: ChainSide = .tezos, canSwitch: Bool, layer2Name: String = ChainSide.etherlink.rawValue,
+         onChange: @escaping @MainActor (ChainSide) -> Void) {
         self.side = side
+        self.layer2Name = layer2Name
         self.onChange = onChange
-        var names = ChainSide.allCases.map { strdup($0.rawValue) }
+        var names = ChainSide.allCases.map { strdup($0 == .etherlink ? layer2Name : $0.rawValue) }
         names.append(nil)
         let made = names.withUnsafeMutableBufferPointer { buffer in
             buffer.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buffer.count) { gtk_drop_down_new_from_strings($0)! }
@@ -46,8 +50,10 @@ final class ChainSidePicker {
 
     private func showLogo() {
         logo.setChildren([Self.logo(side, size: 22)])
-        dropDown.tooltip("On \(side.rawValue). Switch between Tezos and Etherlink.")
+        dropDown.tooltip("On \(title(side)). Switch between Tezos and \(layer2Name).")
     }
+
+    private func title(_ side: ChainSide) -> String { side == .etherlink ? layer2Name : side.rawValue }
 
     static func logo(_ side: ChainSide, size: Int32) -> Widget {
         UI.resourceImage(side.logo.name, side.logo.ext, pixelSize: size) ?? UI.label(side.rawValue, classes: ["caption"])

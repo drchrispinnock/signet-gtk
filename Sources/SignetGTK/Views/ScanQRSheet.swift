@@ -79,6 +79,13 @@ final class ScanQRSheet: Sheet {
             _ = self.model.hasCamera
             Task { @MainActor [weak self] in self?.startCamera() }
         })
+        // The found panel's buttons follow the model, as SwiftUI's do: whether the address is in
+        // the list, and whether the selected account can send.
+        trackers.append(Tracker { [weak self] in
+            guard let self else { return }
+            _ = (self.model.wallets, self.model.selectedWallet, self.model.canSendFromSelected)
+            if let found = self.found { self.fillFoundPanel(found) }
+        })
         update()
     }
 

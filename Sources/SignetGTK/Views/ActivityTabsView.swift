@@ -76,7 +76,7 @@ final class ActivityTabsView {
 final class LayerToggles {
     let model: WalletViewModel
     let root = UI.hbox(spacing: 4)
-    private var buttons: [(layer: Int, name: String, button: Widget, logo: Widget)] = []
+    private var buttons: [(layer: Int, button: Widget, logo: Widget)] = []
     private var tracker: Tracker?
 
     init(model: WalletViewModel) {
@@ -85,13 +85,13 @@ final class LayerToggles {
             let logo = ChainSidePicker.logo(side, size: 16)
             let button = Widget(gtk_toggle_button_new()!)
             gtk_button_set_child(button.as(), logo.pointer)
-            button.classes("flat", "layer-toggle").accessibleLabel(side.rawValue).align(v: GTK_ALIGN_CENTER)
+            button.classes("flat", "layer-toggle").align(v: GTK_ALIGN_CENTER)
             Signals.connect(button, "toggled") { [model] in
                 let on = gtk_toggle_button_get_active(button.as()) != 0
                 guard on != model.shownLayers.contains(layer) else { return }
                 if on { model.shownLayers.insert(layer) } else { model.shownLayers.remove(layer) }
             }
-            buttons.append((layer, side.rawValue, button, logo))
+            buttons.append((layer, button, logo))
             root.append(button)
         }
         root.accessibleLabel("Chains shown")
@@ -100,8 +100,12 @@ final class LayerToggles {
 
     private func update() {
         let shown = model.shownLayers
-        for (layer, name, button, logo) in buttons {
+        // What the Layer 2 is called on this network: "Etherlink", or "Previewnet".
+        let layer2Name = model.network.l2Name
+        for (layer, button, logo) in buttons {
             let on = shown.contains(layer)
+            let name = layer == 1 ? ChainSide.tezos.rawValue : layer2Name
+            button.accessibleLabel(name)
             if (gtk_toggle_button_get_active(button.as()) != 0) != on { gtk_toggle_button_set_active(button.as(), on ? 1 : 0) }
             gtk_widget_set_opacity(logo.pointer, on ? 1 : 0.45)
             button.tooltip(on ? "Showing \(name). Click to hide its transactions, tokens and NFTs." : "Show \(name)")

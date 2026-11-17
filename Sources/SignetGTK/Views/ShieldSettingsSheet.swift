@@ -31,15 +31,14 @@ final class ShieldSettingsSheet: Sheet {
         servicesHeader = UI.hbox(spacing: 6, [UI.label("TzEL services", classes: ["heading"]), servicesHelpIcon])
         accessHeader = UI.hbox(spacing: 6, [UI.label("Access", classes: ["heading"]), tokenHelpIcon])
         super.init(model: model, width: 520)
-        networkPicker = Form.picker("Network", options: Network.all.map { $0.name + ($0.name == model.network.name ? "  (in use)" : "") },
-                                    selected: Network.all.firstIndex { $0.name == model.network.name } ?? 0) { [unowned self] in
-            let index = Form.selected(self.networkPicker)
-            guard Network.all.indices.contains(index) else { return }
-            self.editingNetworkName = Network.all[index].name
+        let picker = NetworksSheet.networkPicker(model: model, editing: { [unowned self] in self.editingNetworkName }) { [unowned self] name in
+            self.editingNetworkName = name
             Form.clear(self.tokenEntry)
             self.setTokenError(nil)
             self.rebuild()
         }
+        networkPicker = picker.row
+        trackers.append(picker.tracker)
         enabledToggle = Form.toggle("Enable Shielded Transactions", isOn: false) { [unowned self] in
             guard let base = self.editingNetwork else { return }
             let on = Form.isOn(self.enabledToggle)
@@ -51,6 +50,8 @@ final class ShieldSettingsSheet: Sheet {
                                         onSubmit: { [unowned self] in self.applyOperatorToken() })
         tokenEntry.size(width: 300).expand(h: true)
         tokenError.isVisible = false
+        // Out of the services group while shielding is off on the network being edited.
+        g_object_ref_sink(plainHTTPNote.row.raw)
         helpIcon.tooltip(help)
         servicesHelpIcon.tooltip(servicesHelp)
         tokenHelpIcon.tooltip(tokenHelp)
@@ -171,4 +172,6 @@ final class ShieldSettingsSheet: Sheet {
     }
 
     override func closed() { Form.clear(tokenEntry) }
+
+    isolated deinit { g_object_unref(plainHTTPNote.row.raw) }
 }
