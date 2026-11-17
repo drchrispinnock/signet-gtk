@@ -166,6 +166,9 @@ app share the module; upstream's types are `internal`, so they must). The produc
   - A widget taken out of its box loses its last reference and is freed. `setChildren`,
     `Form.setRows` and `Form.append` hold a reference while they move a widget, so a widget kept
     in a property can be put back after a rebuild; anything else that re-parents must do the same.
+  A widget kept in a property that a rebuild leaves out (a row shown only while a switch is on)
+  is freed all the same, and putting it back later uses a dead widget: `g_object_ref_sink` it
+  when made and unref it in the sheet's `isolated deinit` (`NetworksSheet.l2NodeRow`).
   - `Sheet` is SwiftUI's `.sheet`: an `AdwDialog` (sized to its content as it changes, scrolling
     when taller than the window, narrowed to fit a narrow window) with upstream's layout: title,
     content, red error line, a status line with spinner (`setBusy`), and the buttons
@@ -200,8 +203,10 @@ right-click `NFTContextMenu` in `NFTGridView`, `TransferNFTSheet`, `DownloadNFTs
 shielded transactions (TzEL: `ShieldSettingsSheet`, `ShieldedAddressSheet` with the address
 book, `ShieldSheet`, `UnshieldSheet`, `SendShieldedSheet`; the pieces they share, the two sides
 and the hash line, are statics on `ShieldSheet`, and a pasted address goes into a
-`ShieldedJSONEditor`), and 0.9.17's Scan QR code, recovery sheet and Settings' "Arrange NFTs by
-address". Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+`ShieldedJSONEditor`), 0.9.17's Scan QR code, recovery sheet and Settings' "Arrange NFTs by
+address", and 0.9.18's Shadownet (Previewnet): the badge, Networks and Shielded settings list
+`model.offeredNetworks` (`NetworksSheet.networkPicker` keeps the two sheets' pickers in step with
+it), and the Layer 2 is named by `network.l2Name` in the layer toggles, Bridge and Send. Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
 the Bridge deposit, the Etherlink alias link, Send on Etherlink and a dApp on Shadownet's Layer 2
 (`tezosx-shadownet`: refused with Layer 2 off, then paired and an operation approved) have been
 run against Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with

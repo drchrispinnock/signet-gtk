@@ -22,7 +22,7 @@ final class NetworkBadgeMenu {
 
             let menu = MenuBuilder()
             menu.section()
-            for base in Network.all {
+            for base in model.offeredNetworks {
                 let resolved = model.resolved(base)
                 menu.choice("\(resolved.name)  \(resolved.rpcURL.host() ?? "")", action: Operations.selectNetwork, value: base.name)
             }
