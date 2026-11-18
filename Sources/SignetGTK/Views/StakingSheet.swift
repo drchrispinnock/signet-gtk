@@ -65,10 +65,7 @@ final class StakingSheet: Sheet {
     private var passphrase: String { Form.text(passphraseField) }
     private var canConfirm: Bool { estimate != nil && !(needsPassphrase && passphrase.isEmpty) }
     private var watchOnlyNote: String {
-        switch wallet?.keyKind {
-        case .remote: "Signet cannot sign for this account: it uses a remote signer."
-        default: "Signet holds only this address's public key, so it can show but not change its delegation."
-        }
+        "Signet holds only this address's public key, so it can show but not change its delegation."
     }
 
     private var title: String {

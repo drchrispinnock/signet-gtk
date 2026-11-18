@@ -39,9 +39,9 @@ final class GovernanceSheet: Sheet {
             adw_toggle_set_name(toggle, candidate.rawValue)
             adw_toggle_group_add(tabs.opaque, toggle)
         }
-        // An account that cannot vote on Tezos (a voting key that is not a baker) opens on Etherlink.
-        let showsTabs = model.canGovernEtherlink
-        if showsTabs, model.delegateInfo?.isBaker != true { tab = .etherlink }
+        // Both tabs only for a baker with Etherlink governance on; a voting key that is not a
+        // baker has Etherlink alone.
+        if !isBaker { tab = .etherlink }
         adw_toggle_group_set_active_name(tabs.opaque, tab.rawValue)
         tabs.isVisible = showsTabs
         Signals.connect(tabs, "notify::active-name") { [unowned self] in
@@ -54,7 +54,18 @@ final class GovernanceSheet: Sheet {
         newProposalField = Form.entry("Or a new proposal hash (P…)", monospaced: true, onChange: { [unowned self] in self.updateUpvote() })
         show(tab)
         Task { await load() }
+        trackers.append(Tracker { [weak self] in
+            guard let self else { return }
+            self.tabs.isVisible = self.showsTabs
+            if !self.isBaker, self.tab != .etherlink {
+                adw_toggle_group_set_active_name(self.tabs.opaque, Tab.etherlink.rawValue)
+                self.show(.etherlink)
+            }
+        })
     }
+
+    private var isBaker: Bool { model.delegateInfo?.isBaker == true }
+    private var showsTabs: Bool { model.canGovernEtherlink && isBaker }
 
     /// The tab's view in the body; each tab keeps its state while the other is shown.
     private func show(_ tab: Tab) {

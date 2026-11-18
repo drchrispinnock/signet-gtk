@@ -32,7 +32,7 @@ final class ActionButtonsView {
     private var isWatchOnly: Bool { model.selectedWallet?.keyKind == KeyKind.none }
     /// Faucets only fund implicit accounts; a contract (KT1) is funded by sending to it.
     private var isContract: Bool { model.selectedWallet?.address.isContract == true }
-    /// Keys on disk (clear or encrypted) and on a Ledger can sign; remote signers cannot yet.
+    /// Keys on disk (clear or encrypted), on a Ledger, in AirGap Vault or with a remote signer can sign.
     private var canSign: Bool { model.selectedWallet?.keyKind.canSign == true }
 
     private var actions: [Action] {
@@ -64,10 +64,7 @@ final class ActionButtonsView {
         guard let wallet = model.selectedWallet, !(canSign && !model.accountNotOnChain) else { return nil }
         if isWatchOnly { return "This is an address-book entry; Signet holds no key for it, so it cannot send." }
         if model.accountNotOnChain { return "This address has no tez on \(model.network.name), so there is nothing to send." }
-        switch wallet.keyKind {
-        case .remote: return "This account signs through a remote signer, which Signet does not support yet."
-        default: return "Signet cannot sign for this account yet."
-        }
+        return "Signet cannot sign for this account yet."
     }
 
     private func update() {

@@ -15,7 +15,8 @@ Stack: Swift 6 (installed with swiftly, `~/.local/share/swiftly/bin`), GTK4 + li
 UI, swift-crypto in place of CryptoKit, and the Linux JavaScriptCore (`javascriptcoregtk-6.0`, the
 same engine as the Mac) for the Taquito bridge. Development headers come from Debian 13 packages
 (`libgtk-4-dev`, `libadwaita-1-dev`, `libjavascriptcoregtk-6.0-dev`, `libwebkitgtk-6.0-dev`,
-`libhidapi-dev`, `libwebp-dev`, `pkg-config`). WebKitGTK's web view is the Buy sheet's on-ramp page.
+`libhidapi-dev`, `libwebp-dev`, `zlib1g-dev`, `pkg-config`). WebKitGTK's web view is the Buy sheet's
+on-ramp page and the Getting Started window.
 
 The development machine is reached over SSH. The user's own desktop is XFCE on a TigerVNC X
 server at `DISPLAY=:1`: put the app there only when the user wants to see it, and never send it
@@ -147,6 +148,17 @@ app share the module; upstream's types are `internal`, so they must). The produc
     `QRCamera.textsFromClipboard` reads GTK's clipboard (asynchronously, unlike NSPasteboard).
     `hasCamera` is false without zbar, so the Scan QR code items stay hidden. The camera path
     has not been run here: this machine has no camera (see "Trying Scan QR code" below).
+  - `RemoteSignerSocket.swift`: `FramedConnection` over POSIX sockets (non-blocking, `poll` a
+    quarter second at a time so `close` and cancellation stop it) for upstream's
+    `RemoteSignerClient.swift`, whose own is Network.framework's; upstream builds it under
+    `#if canImport(Network)`'s `#else`. Its HTTP path uses one long-lived `URLSession` off the Mac.
+  - AirGap Vault signing: upstream's `AirGapSigning` and `AirGapSignSession` are compiled; the
+    panel is `Views/AirGapSignView.swift` (`presentPanel`/`closePanel`, which upstream's
+    `#else` calls), a `Sheet` stacked over whatever the window shows, found through
+    `SignetApp.current`. Closing it any other way than with the Vault's reply cancels.
+  - `CZlib` (a module map linking `z`, no pkg-config: zlib is in FreeBSD's base system) for the
+    gzip around AirGap's codes, which upstream's `Gzip` does with Compression on the Mac and
+    with zlib under `#elseif canImport(CZlib)`.
   - Not replaced: `UpdaterService` (Sparkle; Signet is updated by whatever installed it).
 - `Sources/SignetGTK/GTK` is a thin Swift layer over GTK's C API (no binding library):
   - `MainLoop`: GLib drains libdispatch's main queue (`_dispatch_get_main_queue_handle_4CF`), so
@@ -206,7 +218,14 @@ and the hash line, are statics on `ShieldSheet`, and a pasted address goes into 
 `ShieldedJSONEditor`), 0.9.17's Scan QR code, recovery sheet and Settings' "Arrange NFTs by
 address", and 0.9.18's Shadownet (Previewnet): the badge, Networks and Shielded settings list
 `model.offeredNetworks` (`NetworksSheet.networkPicker` keeps the two sheets' pickers in step with
-it), and the Layer 2 is named by `network.l2Name` in the layer toggles, Bridge and Send. Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+it), and the Layer 2 is named by `network.l2Name` in the layer toggles, Bridge and Send, and
+0.9.19's remote signers (`ConnectRemoteSignerSheet`, also on the welcome screen), AirGap Vault
+accounts (`AddAirGapAccountSheet` after a Pair Account code in Scan QR code, animated codes
+gathered with progress) and their signing panel, the Domains tab (`DomainListView`, Mainnet only,
+`model.activityTabs`) and "Activity" for "Recent transactions", the account tags on the address
+line (AirGap, Remote signer), Etherlink voting keys (the "Voting rights contract" field in
+Networks; Governance shows only the Etherlink tab to a voting key that is not a baker), and the
+Help menu's Getting Started and Signet Website as the burger menu's last section. Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
 the Bridge deposit, the Etherlink alias link, Send on Etherlink and a dApp on Shadownet's Layer 2
 (`tezosx-shadownet`: refused with Layer 2 off, then paired and an operation approved) have been
 run against Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
@@ -214,7 +233,10 @@ real tez (NFT Download and the Buy widget have been run). The shielded sheets ha
 against Shadownet's TzEL deployment as far as it goes without the operator's access token
 (settings, the token on file, a shielded address and the address book, the shield's rollup
 checks, pool and estimate, the unshield and transfer estimates); a shield, unshield or private
-transfer needs the token and has not been run here.
+transfer needs the token and has not been run here. Remote signers have been run against a
+local octez-signer 25.3 (the sheet: List Keys, the check, Add; and upstream's
+`RemoteSignerLiveTests`, a tz1 and a tz4 key over TCP and HTTP signing through the bridge); the
+AirGap panel has only been looked at (no camera or Vault here), not signed with.
 - NFT tiles select with click, Ctrl-click and Shift-click (`UI.onClick(_:modifiers:)`), and a
   right-click menu whose entries depend on that state is `UI.contextMenu(_:build:)`, rebuilt
   each time it opens (`UI.MenuEntry`: items, a dimmed line of explanation, dividers).
@@ -238,6 +260,15 @@ transfer needs the token and has not been run here.
   (`SignetGTKTests/RecoverySheetPrintTests`, which also scan the printed codes back).
   Upstream's `QRScanTests` and `RecoverySheetTests` run here, less the NSPasteboard and PDFKit
   tests (behind `#if canImport` on `claude@portable`).
+- Trying a remote signer: `octez-signer -d DIR gen keys alice` (`--sig bls` for tz4), then
+  `octez-signer -d DIR launch socket signer -a 127.0.0.1 -p 17732 --allow-list-known-keys` (or
+  `launch http signer … -p 16732`); `SIGNET_REMOTE_SIGNERS=tcp://127.0.0.1:17732/tz1…,…` runs
+  `RemoteSignerLiveTests`. `SignetGTKTests/RemoteSignerSocketTests` use a pretend signer instead.
+- Getting Started (`Views/GettingStartedView.swift`): a window of its own with a WebKitGTK view,
+  JavaScript off, showing `manuscript/110-starting.md` rendered by upstream's `Markua` with its
+  pictures; both are copied as resources and read from `Bundle.module`. Upstream's bundle test
+  reads `Bundle.main` and is behind `#if canImport(AppKit)`; `GettingStartedBundleTests` checks
+  the port's bundle.
 - Trying Scan QR code without a camera: make `CameraWatcher`'s report `true` for the run (do not
   commit it), then use Choose Image… (with no window manager on `:99`, click into the file
   chooser before typing a path). `magick -density 100 sheet.pdf[1] page.png` turns a recovery
@@ -295,6 +326,12 @@ avoid too:
   `CFBundleShortVersionString`, which a SwiftPM build lacks. It is laid out at the size the
   print dialog's paper gives, and its title shrinks to stay on one line in fonts wider than
   the Mac's.
+- The Help menu's Getting Started and Signet Website are the burger menu's last section, and
+  Getting Started is a window of the app rather than a SwiftUI `Window` scene.
+- Connect Remote Signer says plain HTTP is for a signer "on this computer" ("on this Mac"), and
+  the AirGap sheets say "this computer's camera". Where macOS asks for camera permission, the
+  AirGap panel opens the device node or says why not. Upstream's App Transport Security note on
+  a refused plain-HTTP signer never appears: Linux has none.
 - NFT Download's "Show in Finder" is "Open Folder" (the file manager, with the first saved file
   selected where it can); Ctrl-click stands in for Cmd-click when selecting tiles.
 - `signet://` pairing links: the desktop entry declares `x-scheme-handler/signet` (`Exec=signet-gtk %u`)

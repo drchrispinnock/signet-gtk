@@ -71,6 +71,7 @@ final class ForgetAccountSheet: Sheet {
         return switch wallet?.keyKind {
         case .unencrypted, .encrypted: "Signet holds this account's secret key. Forgetting deletes that key from ~/.signet. Without another copy of the key or its recovery phrase, the account and its tez are lost."
         case .ledger: "This account's key stays on your Ledger; Signet will only forget how to reach it. You can connect it again later."
+        case .airgap: "This account's key stays in AirGap Vault on your phone; Signet will only forget its address and public key. You can scan the Vault's Pair Account code again later."
         case .remote, .unknown: "Signet will forget this account's signer entry. The key itself lives elsewhere and is not touched."
         default: "This is an address-book entry. Signet will forget the name and address; nothing else changes."
         }

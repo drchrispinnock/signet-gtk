@@ -10,7 +10,7 @@ pkgdesc='Tezos wallet for Linux (GTK port of Signet)'
 arch=('x86_64')
 url='https://github.com/drchrispinnock/signet-gtk'
 license=('MIT')
-depends=('glibc' 'gcc-libs' 'glib2' 'gtk4' 'libadwaita' 'webkitgtk-6.0' 'hidapi' 'libwebp' 'curl' 'librsvg'
+depends=('glibc' 'gcc-libs' 'glib2' 'gtk4' 'libadwaita' 'webkitgtk-6.0' 'hidapi' 'libwebp' 'zlib' 'curl' 'librsvg'
          'pango' 'harfbuzz' 'cairo' 'gdk-pixbuf2' 'graphene' 'vulkan-icd-loader')
 optdepends=('noto-fonts-emoji: the baker emoji in the delegate row'
             'zbar: Scan QR code, with a camera')

@@ -1,7 +1,8 @@
 import CAdwaita
 import Foundation
 
-/// Bottom section of the dashboard: recent transactions or NFTs, chosen with a segmented control.
+/// Bottom section of the dashboard: activity, assets, NFTs or Tezos Domains names, chosen with
+/// a segmented control.
 /// The GTK counterpart of upstream's `Views/ActivityTabsView.swift`. The window's content
 /// scrolls as a whole, so the lists here grow rather than scroll on their own.
 @MainActor
@@ -15,23 +16,19 @@ final class ActivityTabsView {
     private var transactions: TransactionListView?
     private var tokens: TokenListView?
     private var nfts: NFTGridView?
+    private var domainList: DomainListView?
+    private var offeredTabs: [WalletViewModel.ActivityTab] = []
     private var trackers: [Tracker] = []
 
     init(model: WalletViewModel) {
         self.model = model
         toggles = Widget(adw_toggle_group_new()!)
-        for tab in WalletViewModel.ActivityTab.allCases {
-            let toggle = adw_toggle_new()!
-            adw_toggle_set_label(toggle, tab.rawValue)
-            adw_toggle_set_name(toggle, tab.rawValue)
-            adw_toggle_group_add(toggles.opaque, toggle)
-        }
-        toggles.size(width: 400).align(h: GTK_ALIGN_START)
+        toggles.align(h: GTK_ALIGN_START)
         gtk_widget_set_hexpand(toggles.pointer, 0)
         Signals.connect(toggles, "notify::active-name") { [model, toggles] in
             guard let name = adw_toggle_group_get_active_name(toggles.opaque),
                   let tab = WalletViewModel.ActivityTab(rawValue: String(cString: name)) else { return }
-            if model.activityTab != tab { model.activityTab = tab }
+            if model.shownActivityTab != tab { model.activityTab = tab }
         }
         layers = LayerToggles(model: model)
         root = UI.vbox(spacing: 10, [UI.hbox(spacing: 12, [toggles, UI.hspacer(), layers.root]), body])
@@ -39,20 +36,33 @@ final class ActivityTabsView {
         trackers.append(Tracker { [unowned self] in
             let filters = self.model.filtersLayers
             self.layers.root.isVisible = filters
-            // `.frame(maxWidth: 400)`, narrower beside the layer toggles so the row still fits the
-            // narrowest window (480 less the margins).
+            // `.frame(maxWidth: 460)` upstream; 400 here, and narrower beside the layer toggles, so
+            // the row still fits the narrowest window (480 less the margins).
             self.toggles.size(width: filters ? 340 : 400)
         })
     }
 
     private func update() {
-        let tab = model.activityTab
+        // The tabs the network offers: Domains only where Tezos Domains exists (Mainnet).
+        let offered = model.activityTabs
+        let tab = model.shownActivityTab
+        if offered != offeredTabs {
+            offeredTabs = offered
+            adw_toggle_group_remove_all(toggles.opaque)
+            for tab in offered {
+                let toggle = adw_toggle_new()!
+                adw_toggle_set_label(toggle, tab.rawValue)
+                adw_toggle_set_name(toggle, tab.rawValue)
+                adw_toggle_group_add(toggles.opaque, toggle)
+            }
+        }
         adw_toggle_group_set_active_name(toggles.opaque, tab.rawValue)
         guard tab != shownTab else { return }
         shownTab = tab
         transactions = nil
         tokens = nil
         nfts = nil
+        domainList = nil
         switch tab {
         case .transactions:
             let view = TransactionListView(model: model)
@@ -65,6 +75,10 @@ final class ActivityTabsView {
         case .nfts:
             let view = NFTGridView(model: model)
             nfts = view
+            body.setChildren([view.root])
+        case .domains:
+            let view = DomainListView(model: model)
+            domainList = view
             body.setChildren([view.root])
         }
     }
@@ -286,7 +300,7 @@ final class TransactionRowView {
             switch role {
             case .weDelegated: return "Delegated to \(party.name)"
             case .weUndelegated: return "Undelegated"
-            case .delegatorJoined: return "\(party.name) delegated to you"
+            case .delegatorJoined: return "\(party.name) delegated"
             case .delegatorLeft: return "\(party.name) undelegated"
             case .delegatorMoved: return "\(party.name) moved their delegation"
             }
