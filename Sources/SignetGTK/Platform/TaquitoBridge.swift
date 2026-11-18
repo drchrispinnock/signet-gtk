@@ -484,6 +484,48 @@ final class TaquitoBridge: @unchecked Sendable {
             }
             return nil
         }
+
+        // AirGap Vault: the bridge's signer hands over the forged operation; the user carries
+        // it to the phone and back by QR codes (`AirGapSigning`), and the checked 64-byte
+        // signature, or why there is none, goes back to `__signet_airgapDone`.
+        define("airgapSign") { [weak self] args in
+            guard let self else { return nil }
+            let id = args.int(0), json = args.string(1)
+            let generation = self.contextGeneration
+            self.trace("airgap #\(id) sign request")
+            Task { @MainActor in
+                let reply: (String, String?)
+                do { reply = (Hex.encode(try await AirGapSigning.shared.sign(requestJSON: json)), nil) }
+                catch { reply = ("", error.localizedDescription) }
+                self.queue.async {
+                    guard self.contextGeneration == generation else { return }
+                    self.trace("airgap #\(id) \(reply.1 == nil ? "signed" : "not signed")")
+                    self.context?.objectForKeyedSubscript("__signet_airgapDone")?.call(withArguments: [id, reply.0, reply.1 ?? NSNull()])
+                }
+            }
+            return nil
+        }
+
+        // Remote signers: the bridge's remote signer names the signer, the key and the bytes;
+        // Swift does the HTTP or socket exchange (`RemoteSignerClient`) and hands back the
+        // signature as given, which the bridge checks against the account's key.
+        define("remoteSign") { [weak self] args in
+            guard let self else { return nil }
+            let id = args.int(0), json = args.string(1)
+            let generation = self.contextGeneration
+            self.trace("remote signer #\(id) request")
+            Task {
+                let reply: (String, String?)
+                do { reply = (try await RemoteSigners.answer(requestJSON: json), nil) }
+                catch { reply = ("", error.localizedDescription) }
+                self.queue.async {
+                    guard self.contextGeneration == generation else { return }
+                    self.trace("remote signer #\(id) \(reply.1 == nil ? "answered" : "failed")")
+                    self.context?.objectForKeyedSubscript("__signet_remoteDone")?.call(withArguments: [id, reply.0, reply.1 ?? NSNull()])
+                }
+            }
+            return nil
+        }
         context.setObject(native, forKeyedSubscript: "__signet")
     }
 

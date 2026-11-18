@@ -226,7 +226,8 @@ final class NetworksSheet: Sheet {
 
     // MARK: Layer 2
 
-    /// The switch, and while it is on the node and the two governance contracts.
+    /// The switch, and while it is on the node, the two governance contracts and the voting-rights
+    /// contract.
     private func rebuildLayer2() {
         guard let base = editingNetwork else { return }
         let on = model.isL2Enabled(for: base)
@@ -243,6 +244,18 @@ final class NetworksSheet: Sheet {
                 useDefault: { [model] in model.useDefaultEtherlinkGovernanceContract(for: process, in: base) }
             )
         } : []
+        if on {
+            governanceFields.append(SettingField(
+                title: "Voting rights contract",
+                current: { [model] in model.etherlinkVotingContract(in: base) },
+                defaultValue: base.defaultEtherlinkVotingContract?.value ?? "",
+                prompt: "KT1… (empty: the one the governance contracts name)",
+                monospaced: true,
+                apply: { [model] in model.setEtherlinkVotingContract($0, in: base) },
+                problem: { _ in "Enter the voting-rights contract's address (KT1…), or leave it empty to use the one the governance contracts name." },
+                useDefault: { [model] in model.useDefaultEtherlinkVotingContract(in: base) }
+            ))
+        }
         Form.setRows(layer2, [l2Toggle] + (on ? [l2NodeRow] + governanceFields.map(\.root) : []))
         updateNode()
     }
