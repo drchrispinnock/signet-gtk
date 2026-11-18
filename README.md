@@ -13,26 +13,28 @@ bridge and dApps on its Michelson side) and shielded tez on the TzEL rollup.
 
 ## Install
 
-Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). Each
-has the Swift runtime linked in and needs GTK 4.18 and libadwaita 1.7 or newer (Debian 13,
-Ubuntu 25.04 and later, Fedora 42, openSUSE Tumbleweed, Arch).
+Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). They
+are built on, and supported on, **Debian 13 (trixie) on amd64** only. Each has the Swift runtime
+linked in.
 
-- **Debian, Ubuntu:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
-- **Fedora, openSUSE:** `sudo dnf install ./signet-gtk-<version>-1.x86_64.rpm` (or `zypper install`)
-- **Arch:** `sudo pacman -U signet-gtk-bin-<version>-1-x86_64.pkg.tar.zst`
-- **Anything else:** unpack `signet-gtk-<version>-linux-x86_64.tar.xz` and run `sudo ./install.sh`
-  (or `./install.sh --user` to install into `~/.local` without root); `uninstall.sh` removes it.
+- **Debian 13:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
+- **Or the tarball, on Debian 13:** unpack `signet-gtk-<version>-linux-x86_64.tar.xz` and run
+  `sudo ./install.sh` (or `./install.sh --user` to install into `~/.local` without root);
+  `uninstall.sh` removes it.
 
-Signet then appears in the applications menu. The packages install a udev rule that lets you use
+Signet then appears in the applications menu. The package installs a udev rule that lets you use
 a Ledger without root; with the tarball's `--user` install, `install.sh` prints the one command
 that adds it.
+
+Other distributions (Ubuntu, Fedora, Rocky, openSUSE, Arch) are not supported by these packages:
+they do not work there. Packages built natively on each are planned; until then, build from
+source on those systems.
 
 ## Build from source
 
 You need Swift 6 (tested with 6.4) and the development files for GTK 4, libadwaita,
 WebKitGTK 6.0 (its JavaScriptCore runs the Taquito bridge, its web view the Buy sheet's on-ramp),
-hidapi and libwebp. These steps have been tried on Debian 13 and
-Ubuntu 26.10.
+hidapi and libwebp. These steps have been tried on Debian 13.
 
 **1. System packages.** The first two lines are what Swift itself needs, the rest is for Signet:
 
@@ -76,9 +78,8 @@ program, so it runs on a machine without Swift. The program looks for its resour
 makes a debug build in `.build/debug`. To update later: `git pull && git submodule update`, then
 build again.
 
-Other distributions need the same libraries under their own names, for example on Fedora
-`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel webkitgtk6.0-devel hidapi-devel libwebp-devel zlib-ng-compat-devel`, and on Arch
-`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp zlib`; `swiftly init` lists what Swift needs there.
+Other distributions are untested; they need the same libraries under their own names (GTK 4.18
+and libadwaita 1.7 or newer), and `swiftly init` lists what Swift needs there.
 
 Run the tests with:
 
@@ -148,15 +149,15 @@ GSK_RENDERER=cairo signet-gtk/.build/release/signet-gtk
 
 ## Make the packages
 
-From a source checkout, after building once:
+On Debian 13, from a source checkout, after building once:
 
 ```sh
 packaging/deb/build-deb.sh          # dist/signet-gtk_<version>_<arch>.deb       (needs dpkg-deb)
-packaging/rpm/build-rpm.sh          # dist/signet-gtk-<version>-1.<arch>.rpm     (needs rpmbuild: apt install rpm)
 packaging/tarball/build-tarball.sh  # dist/signet-gtk-<version>-linux-<arch>.tar.xz
-packaging/arch/build-arch.sh        # dist/signet-gtk-bin-…pkg.tar.zst, and dist/arch/PKGBUILD for the AUR
-                                    #   (needs makepkg: apt install makepkg; run after the tarball)
 ```
+
+`packaging/rpm` and `packaging/arch` build only on the systems they package for (Fedora, RHEL
+or openSUSE; Arch): packages built on Debian did not work there.
 
 The version is the repository's tag when the commit is tagged (`v0.8` gives `0.8`), otherwise the
 last tag plus the date and commit; `VERSION=…` overrides it. `SKIP_BUILD=1` reuses the release

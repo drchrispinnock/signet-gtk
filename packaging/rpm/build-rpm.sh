@@ -1,10 +1,18 @@
 #!/bin/sh
-# Builds dist/signet-gtk-<version>-1.<arch>.rpm with rpmbuild (Debian: apt install rpm) from what
+# Builds dist/signet-gtk-<version>-1.<arch>.rpm with rpmbuild from what
 # packaging/stage.sh lays out under /usr.
 #
 #   packaging/rpm/build-rpm.sh
 #   VERSION=0.8 SKIP_BUILD=1 packaging/rpm/build-rpm.sh
 set -eu
+
+# Packages built on Debian did not work on Fedora, RHEL or openSUSE, so this builds only on the system it packages
+# for (the build farm builds each package natively).
+. /etc/os-release
+case " $ID ${ID_LIKE:-} " in
+    *" fedora "*|*" rhel "*|*" centos "*|*" suse "*|*" opensuse "*) ;;
+    *) echo "build this package on Fedora, RHEL or openSUSE itself, not on $PRETTY_NAME" >&2; exit 1 ;;
+esac
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"

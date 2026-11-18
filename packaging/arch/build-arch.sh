@@ -1,13 +1,21 @@
 #!/bin/sh
 # Writes dist/arch/PKGBUILD (and .SRCINFO) for signet-gtk-bin from PKGBUILD.in, pointing at the
 # release tarball on GitHub, and builds the package from the local tarball with makepkg
-# (Debian: apt install makepkg) into dist/. Run packaging/tarball/build-tarball.sh first.
+# into dist/. Run packaging/tarball/build-tarball.sh first.
 #
 #   packaging/arch/build-arch.sh
 #   VERSION=0.8 packaging/arch/build-arch.sh
 #
 # dist/arch/PKGBUILD and .SRCINFO are what goes to the AUR.
 set -eu
+
+# Packages built on Debian did not work on Arch, so this builds only on the system it packages
+# for (the build farm builds each package natively).
+. /etc/os-release
+case " $ID ${ID_LIKE:-} " in
+    *" arch "*) ;;
+    *) echo "build this package on Arch itself, not on $PRETTY_NAME" >&2; exit 1 ;;
+esac
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"

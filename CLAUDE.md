@@ -89,7 +89,10 @@ Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of i
   (Scan QR code, opened with `dlopen`) is in `Recommends`, and in the RPM's and Arch's weak
   dependencies.
 - `packaging/rpm/build-rpm.sh` with `signet-gtk.spec`: rpmbuild packages the staged tree; rpm finds
-  the library dependencies itself, so one RPM serves Fedora 42+ and openSUSE Tumbleweed.
+  the library dependencies itself. Built on Debian, the RPM did not work on Rocky (nor the
+  Arch package or the `.deb` on Ubuntu), so it and `build-arch.sh` refuse to run anywhere but
+  their own systems (`/etc/os-release`), for a build farm to make them natively.
+  Only the `.deb` and the tarball are released, and the README supports Debian 13 alone.
 - `packaging/tarball/build-tarball.sh`: the staged tree with `install.sh` (`/usr/local`, `--user`
   for `~/.local`, or `--prefix`; it writes the launcher with the program's full path and keeps a
   manifest for `uninstall.sh`).
