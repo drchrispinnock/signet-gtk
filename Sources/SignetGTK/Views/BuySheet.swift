@@ -47,7 +47,7 @@ final class BuySheet: Sheet {
         render()
     }
 
-    private var canSign: Bool { wallet?.keyKind.canSign == true }
+    private var canSign: Bool { wallet?.keyKind.signsMessages == true }
     private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
 
@@ -103,6 +103,8 @@ final class BuySheet: Sheet {
             rows.append(Form.note("Signet signs a short message with this key so \(provider.title) knows the address is yours.").row)
         } else if signsOnLedger {
             rows.append(Form.note("Your Ledger will ask you to sign a short message proving the address is yours.").row)
+        } else if wallet?.keyKind == .airgap {
+            rows.append(Form.note("AirGap Vault cannot sign the short message \(provider.title) uses to check an address, so \(provider.title) will ask you to confirm it in the widget.").row)
         } else if !canSign {
             rows.append(Form.note("Signet holds no key for this address, so \(provider.title) will ask you to confirm it in the widget.").row)
         }

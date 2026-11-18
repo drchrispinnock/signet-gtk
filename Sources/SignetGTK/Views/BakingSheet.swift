@@ -174,10 +174,7 @@ final class BakingSheet: Sheet {
     }
 
     private var watchOnlyNote: String {
-        switch wallet?.keyKind {
-        case .remote: "Watch only: this baker signs through a remote signer. Its keys and parameters are shown but cannot be changed here."
-        default: "Watch only: Signet holds just this baker's public key. Its keys and parameters are shown but cannot be changed here."
-        }
+        "Watch only: Signet holds just this baker's public key. Its keys and parameters are shown but cannot be changed here."
     }
 
     private func keyRows(current: Address?, pending: [Address], fallback: String) -> [Widget] {

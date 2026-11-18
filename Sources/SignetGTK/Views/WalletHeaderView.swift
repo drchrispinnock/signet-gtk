@@ -1,8 +1,8 @@
 import CAdwaita
 import Foundation
 
-/// Left side of the header: avatar, alias (a dropdown that switches wallets) and its tags,
-/// shortened address with a copy button, then any Tezos Domains names. The GTK counterpart of
+/// Left side of the header: avatar, alias (a dropdown that switches wallets), shortened address
+/// with a copy button and the account's tags, then any Tezos Domains names. The GTK counterpart of
 /// upstream's `WalletIdentityView` in `Views/WalletHeaderView.swift`.
 @MainActor
 final class WalletIdentityView {
@@ -25,8 +25,9 @@ final class WalletIdentityView {
         picker = MenuButtons.make(content: UI.hbox(spacing: 6, [aliasLabel, chevron]), classes: ["account-picker"])
         picker.tooltip("Switch account")
         copyButton = UI.iconButton("edit-copy-symbolic", tooltip: "Copy address") {}
-        let addressRow = UI.hbox(spacing: 6, [address, copyButton])
-        let identity = UI.vbox(spacing: 4, [UI.hbox(spacing: 8, [picker, tags]), addressRow, domains]).align(v: GTK_ALIGN_CENTER)
+        // The tags sit on the address line, not beside the alias: a long alias left them no room.
+        let addressRow = UI.hbox(spacing: 6, [address, copyButton, tags.margins(start: 2)])
+        let identity = UI.vbox(spacing: 4, [picker.align(h: GTK_ALIGN_START), addressRow, domains]).align(v: GTK_ALIGN_CENTER)
         root = UI.hbox(spacing: 12, [avatar.root.align(v: GTK_ALIGN_CENTER), identity])
         Signals.connect(copyButton, "clicked") { [weak self] in self?.copyAddress() }
         trackers.append(Tracker { [unowned self] in self.update() })
@@ -51,6 +52,14 @@ final class WalletIdentityView {
         if wallet.keyKind == .ledger {
             tagWidgets.append(tag("Ledger", icon: "media-removable-symbolic")
                 .tooltip("This key lives on a Ledger\(wallet.ledgerKey.map { " (\($0.fullPath))" } ?? ""). Operations are approved on the device."))
+        }
+        if wallet.keyKind == .airgap {
+            tagWidgets.append(tag("AirGap", icon: "phone-symbolic")
+                .tooltip("This key lives in AirGap Vault on a phone. Signet holds only the address and public key."))
+        }
+        if wallet.keyKind == .remote {
+            tagWidgets.append(tag("Remote signer", icon: "network-server-symbolic")
+                .tooltip("This key is held by a remote signer\(wallet.remoteSigner.map { " at \($0.endpoint)" } ?? ""). Signet sends it what is to be signed and checks every signature against the account's key."))
         }
         if wallet.isSessionOnly {
             // Orange, unlike the other tags: this key is lost at quit unless Remember key is used.
@@ -121,6 +130,7 @@ enum Operations {
         Sheet(action: "create-account", title: "Create account", flag: \.isPresentingCreateWallet),
         Sheet(action: "import-account", title: "Import account", flag: \.isPresentingImportAccount),
         Sheet(action: "connect-ledger", title: "Connect Ledger", flag: \.isPresentingConnectLedger),
+        Sheet(action: "connect-remote-signer", title: "Connect Remote Signer", flag: \.isPresentingConnectRemoteSigner),
         Sheet(action: "scan-qr", title: "Scan QR code", flag: \.isPresentingScanQR),
         Sheet(action: "rename-account", title: "Rename account", flag: \.isPresentingRenameWallet),
         Sheet(action: "export-key", title: "Export secret key", flag: \.isPresentingExportKey),
@@ -163,6 +173,9 @@ enum Operations {
         // A window of its own upstream, with no model flag; a sheet here, opened by the window.
         actions.add("settings") { presentSettings?() }
         actions.add("refresh") { Task { await model.refresh() } }
+        // Upstream's Help menu (`HelpMenuItems`).
+        actions.add("getting-started") { GettingStartedView.present(app: app) }
+        actions.add("website") { if let window = SignetApp.current?.window { UI.open(SignetApp.websiteURL, from: window) } }
         actions.add("quit") { g_application_quit(app.as()) }
         actions.addChoice(selectAccount, current: "") { key in
             if let wallet = model.wallets.first(where: { Self.key(for: $0) == key }) { model.select(wallet) }
@@ -218,6 +231,7 @@ enum Operations {
             .item("Create account…", action: "create-account")
             .item("Import account…", action: "import-account")
             .item("Connect Ledger…", action: "connect-ledger")
+            .item("Connect Remote Signer…", action: "connect-remote-signer")
         if model.hasCamera { menu.item("Scan QR code…", action: "scan-qr") }
         menu.item("Rename account…", action: "rename-account")
             .item("Export secret key…", action: "export-key")
@@ -246,6 +260,10 @@ enum Operations {
             .item("Shielded settings…", action: "shield-settings")
             .item("Settings…", action: "settings")
             .item("Refresh", action: "refresh")
+        // The Mac's Help menu.
+        menu.section()
+            .item("Getting Started", action: "getting-started")
+            .item("Signet Website", action: "website")
         return menu
     }
 }

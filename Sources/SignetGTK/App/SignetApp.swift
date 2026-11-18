@@ -10,6 +10,10 @@ import Foundation
 enum SignetApp {
     /// True when this process is the host for `SignetTests`. SwiftPM runs the tests in a runner
     /// of their own that never starts the app, so this is only kept for upstream's callers.
+    /// The Getting Started chapter of the Signet book online, for when the bundled copy is missing.
+    static let gettingStartedURL = URL(string: "https://leanpub.com/read/tezossignet/ID110-starting_1_Getting")!
+    /// Signet's website, opened from the burger menu.
+    static let websiteURL = URL(string: "https://signetwallet.org")!
     static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
     /// The app's model, as upstream builds it. Under a test host it is built on in-memory stores
@@ -45,6 +49,13 @@ enum SignetApp {
     private static var model: WalletViewModel?
     private static var window: Widget?
     private static var cameraWatcher: CameraWatcher?
+
+    /// The model and its window once the app is up, for what upstream presents from outside a
+    /// view (AirGap Vault's signing panel).
+    static var current: (model: WalletViewModel, window: Widget)? {
+        guard let model, let window else { return nil }
+        return (model, window)
+    }
 
     static func run() -> Int32 {
         // Session-only keys live in memory (`SessionKeyStore`); a core dump would write that

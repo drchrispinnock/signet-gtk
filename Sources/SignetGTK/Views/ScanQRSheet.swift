@@ -26,6 +26,8 @@ final class ScanQRSheet: Sheet {
     private var found: Found?
     /// The parts read so far of a key that a recovery sheet printed across several codes.
     private var keyParts = KeyPartCollector()
+    /// The frames read so far of an animated code (AirGap Vault's, when it does not fit one).
+    private var frames = UniformResource.Decoder()
     private var tasks: [Task<Void, Never>] = []
     private var isClosed = false
 
@@ -39,6 +41,8 @@ final class ScanQRSheet: Sheet {
     private let foundPanel = UI.vbox(spacing: 14)
     private let partsLine = UI.label(wrap: true)
     private let partsRow: Widget
+    private let framesLine = UI.label(wrap: true)
+    private let framesRow: Widget
     private let noteLabel = UI.label(wrap: true).expand(h: true)
     private let noteRow: Widget
     private let title = Sheet.title("")
@@ -50,6 +54,7 @@ final class ScanQRSheet: Sheet {
 
     init(model: WalletViewModel) {
         partsRow = UI.hbox(spacing: 8, [UI.image(icon: "view-grid-symbolic").align(v: GTK_ALIGN_START), partsLine.expand(h: true)])
+        framesRow = UI.hbox(spacing: 8, [UI.image(icon: "view-refresh-symbolic").align(v: GTK_ALIGN_START), framesLine.expand(h: true)])
         noteRow = UI.hbox(spacing: 8, [UI.image(icon: "dialog-warning-symbolic").align(v: GTK_ALIGN_START), noteLabel]).classes("warning-text")
         super.init(model: model, width: 480)
 
@@ -61,11 +66,11 @@ final class ScanQRSheet: Sheet {
         cameraBox.classes("camera-box").size(height: 330)
         // Upstream: "A code shown on this Mac's own screen …"
         UI.setText(hint, isFirstRun
-                   ? "Hold up a QR code of a secret key or a recovery phrase to import it, or of an address to watch it. A code shown on this computer's own screen can be read from a screenshot on the clipboard."
-                   : "Hold up a QR code: a dApp's pairing code, an address or public key, or a secret key or recovery phrase. A code shown on this computer's own screen can be read from a screenshot on the clipboard.")
+                   ? "Hold up a QR code of a secret key or a recovery phrase to import it, AirGap Vault's Pair Account code, or an address to watch it. A code shown on this computer's own screen can be read from a screenshot on the clipboard."
+                   : "Hold up a QR code: a dApp's pairing code, an address or public key, a secret key or recovery phrase, or AirGap Vault's Pair Account code. A code shown on this computer's own screen can be read from a screenshot on the clipboard.")
         scanner.setChildren([cameraBox, pickerGroup, hint])
         UI.setText(title, isFirstRun ? "Import from QR code" : "Scan QR code")
-        content.setChildren([title, scanner, foundPanel, partsRow, noteRow])
+        content.setChildren([title, scanner, foundPanel, partsRow, framesRow, noteRow])
         noteRow.isVisible = false
         UI.shortcut("<Control>v", on: dialog) { [weak self] in if self?.found == nil { self?.paste() } }
 
@@ -110,6 +115,10 @@ final class ScanQRSheet: Sheet {
         partsRow.isVisible = found == nil && !keyParts.isEmpty
         if partsRow.isVisible {
             UI.setText(partsLine, "A secret key in \(keyParts.count) codes: \(keyParts.received) read. Still needed: \(keyParts.missing.map(String.init).joined(separator: ", ")). Scan them in any order.")
+        }
+        framesRow.isVisible = found == nil && !frames.isEmpty
+        if framesRow.isVisible {
+            UI.setText(framesLine, "An animated code: \(frames.receivedFragments) of \(frames.expectedParts) parts read. Keep the code in view.")
         }
 
         if found == nil {
@@ -181,6 +190,7 @@ final class ScanQRSheet: Sheet {
         found = nil
         setNote(nil)
         keyParts = KeyPartCollector()
+        frames = UniformResource.Decoder()
         foundPanel.setChildren([])
         startCamera()
     }
@@ -273,8 +283,34 @@ final class ScanQRSheet: Sheet {
                     self.setNote("That looks like a public key, but Signet could not read it.")
                 }
             }
+        case .uniformResource(let part):
+            do {
+                if case .complete(let payload) = try frames.receive(part) { readAirGap(payload) }
+            } catch {
+                frames = UniformResource.Decoder()
+                setNote("That animated code could not be read. Hold it steady and scan it again.")
+            }
+            update()
+        case .airGapLegacy:
+            setNote("That is an AirGap code in its older format. In AirGap Vault, open QR Details under the code and choose QR Code V3.")
         case .unknown:
             setNote("That code is not a pairing code, an address or a key that Signet can use.")
+        }
+    }
+
+    /// An AirGap message: a Vault's account share is the only one that makes sense here.
+    private func readAirGap(_ payload: [UInt8]) {
+        do {
+            let accounts = try AirGap.accounts(in: AirGap.messages(from: payload))
+            guard !accounts.isEmpty else {
+                setNote("That AirGap code holds no Tezos account. In AirGap Vault, open the Tezos account and choose Pair Account.")
+                return
+            }
+            finish(.airGap(accounts))
+        } catch AirGap.Error.unsupportedVersion {
+            setNote("That AirGap code is in a format Signet does not read. In AirGap Vault, choose QR Code V3 under QR Details.")
+        } catch {
+            setNote("That code is not one Signet can use.")
         }
     }
 
@@ -330,6 +366,7 @@ final class ScanQRSheet: Sheet {
         tasks.forEach { $0.cancel() }
         tasks = []
         keyParts = KeyPartCollector()
+        frames = UniformResource.Decoder()
         gtk_picture_set_paintable(picture.opaque, nil)
     }
 }

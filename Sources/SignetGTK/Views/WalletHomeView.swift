@@ -72,6 +72,7 @@ final class WalletHomeView {
         trackers.append(Tracker { [unowned self] in self.presentSheets() })
         trackers.append(Tracker { [unowned self] in self.presentDAppRequest() })
         trackers.append(Tracker { [unowned self] in self.presentNFTSheets() })
+        trackers.append(Tracker { [unowned self] in self.presentAirGapImport() })
 
         // `.task` upstream: start watching the nodes and load the account.
         model.nodeMonitor.start()
@@ -191,6 +192,27 @@ final class WalletHomeView {
         }
     }
 
+    private var airGapImport: AddAirGapAccountSheet?
+
+    /// `.sheet(isPresented: model.airGapImport != nil)`: the accounts a Vault shared, until the
+    /// sheet closes.
+    private func presentAirGapImport() {
+        let accounts = model.airGapImport
+        if airGapImport?.accounts == accounts { return }
+        let old = airGapImport
+        airGapImport = nil
+        old?.dismiss()
+        guard let accounts else { return }
+        let view = AddAirGapAccountSheet(model: model, accounts: accounts)
+        airGapImport = view
+        view.onClosed = { [weak self, weak view, model] in
+            guard let self, self.airGapImport === view else { return }
+            self.airGapImport = nil
+            model.airGapImport = nil
+        }
+        view.present(over: root)
+    }
+
     private func presentSettings() {
         guard presented["settings"] == nil else { return }
         let view = SettingsView(model: model)
@@ -219,6 +241,7 @@ final class WalletHomeView {
         case "governance": GovernanceSheet(model: model)
         case "baking": BakingSheet(model: model)
         case "connect-ledger": ConnectLedgerSheet(model: model)
+        case "connect-remote-signer": ConnectRemoteSignerSheet(model: model)
         case "scan-qr": ScanQRSheet(model: model)
         case "networks": NetworksSheet(model: model)
         case "bridge": BridgeSheet(model: model)
@@ -325,6 +348,8 @@ final class NoWalletsView {
                              symbol: "dialog-password-symbolic") { [model] in model.isPresentingImportAccount = true },
             StartOption.make(title: "Connect a Ledger", detail: "Use a key that stays on your hardware wallet.",
                              symbol: "media-removable-symbolic") { [model] in model.isPresentingConnectLedger = true },
+            StartOption.make(title: "Connect a remote signer", detail: "Use a key held by a remote signer such as octez-signer or Signatory.",
+                             symbol: "network-server-symbolic") { [model] in model.isPresentingConnectRemoteSigner = true },
         ]
         if model.hasCamera {
             rows.append(StartOption.make(title: "Import from QR code", detail: "Scan a secret key or a recovery phrase with the camera.",

@@ -86,6 +86,8 @@ enum Style {
       color: @error_color; background: alpha(@error_color, 0.15);
     }
     .direction-badge { border-radius: 999px; color: white; border: 1.5px solid @window_bg_color; }
+    /* DomainListView: the name's icon in a tinted circle. */
+    .domain-icon { border-radius: 999px; color: @accent_color; background: alpha(@accent_color, 0.12); }
     .direction-badge.green { background: #34c759; }
     .direction-badge.orange { background: #ff9500; }
     .direction-badge.blue { background: #007aff; }

@@ -40,7 +40,7 @@ Ubuntu 26.10.
 sudo apt install git curl gnupg binutils binutils-gold g++ unzip zip libcurl4-openssl-dev \
     libpython3-dev libxml2-dev libncurses-dev libz3-dev \
     pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libwebkitgtk-6.0-dev \
-    libhidapi-dev libwebp-dev librsvg2-common libzbar0t64
+    libhidapi-dev libwebp-dev zlib1g-dev librsvg2-common libzbar0t64
 ```
 
 libzbar is only opened when Signet runs: without it Signet works, but Scan QR code (which also
@@ -77,8 +77,8 @@ makes a debug build in `.build/debug`. To update later: `git pull && git submodu
 build again.
 
 Other distributions need the same libraries under their own names, for example on Fedora
-`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel webkitgtk6.0-devel hidapi-devel libwebp-devel`, and on Arch
-`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp`; `swiftly init` lists what Swift needs there.
+`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel webkitgtk6.0-devel hidapi-devel libwebp-devel zlib-ng-compat-devel`, and on Arch
+`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp zlib`; `swiftly init` lists what Swift needs there.
 
 Run the tests with:
 

@@ -59,6 +59,9 @@ let package = Package(
         // WebKitGTK, for the on-ramp's widget inside the Buy sheet (`BuyWebView`).
         .systemLibrary(name: "CWebKit", path: "Sources/CWebKit", pkgConfig: "webkitgtk-6.0",
                        providers: [.apt(["libwebkitgtk-6.0-dev"])]),
+        // zlib, for AirGap Vault's gzipped codes (Compression on the Mac). In the base system on
+        // FreeBSD, so linked by name rather than found with pkg-config.
+        .systemLibrary(name: "CZlib", path: "Sources/CZlib", providers: [.apt(["zlib1g-dev"])]),
         .systemLibrary(name: "CAdwaita", path: "Sources/CAdwaita", pkgConfig: "libadwaita-1",
                        providers: [.apt(["libadwaita-1-dev"])]),
         // Upstream's Models, Services and ViewModels compiled as they are, plus the GTK app and
@@ -66,7 +69,7 @@ let package = Package(
         // as on the Mac, so upstream's `@testable import Signet` tests run here unchanged.
         .executableTarget(
             name: "Signet",
-            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CAdwaita", "CWebKit", .product(name: "Crypto", package: "swift-crypto")],
+            dependencies: ["CTzel", "CJavaScriptCore", "CHidapi", "CWebP", "CZlib", "CAdwaita", "CWebKit", .product(name: "Crypto", package: "swift-crypto")],
             path: ".",
             exclude: macOnly,
             sources: ["upstream/Signet/Models", "upstream/Signet/Services", "upstream/Signet/ViewModels", "Sources/SignetGTK"],
@@ -74,6 +77,9 @@ let package = Package(
                 .copy("upstream/Signet/Resources/taquito-bridge.js"),
                 .copy("upstream/Signet/Resources/tzel-shadownet-producer.json"),
                 .copy("upstream/docs/images/signet-256.png"),
+                // Help > Getting Started: the book's chapter and its screenshots.
+                .copy("upstream/manuscript/110-starting.md"),
+                .copy("upstream/manuscript/resources/110"),
                 // The images AssetListView draws, out of the asset catalogue Xcode compiles.
                 .copy("upstream/Signet/Resources/Assets.xcassets/TezosToken.imageset/tezos-token-round.svg"),
                 .copy("upstream/Signet/Resources/Assets.xcassets/EtherlinkLogo.imageset/etherlink-avatar.svg"),
