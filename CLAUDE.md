@@ -83,9 +83,10 @@ package needs a Swift toolchain) and lays out what every format installs:
 `PREFIX/lib/signet-gtk/signet-gtk` with `signet-gtk_Signet.bundle` beside it (where
 `Bundle.module` looks), `PREFIX/bin/signet-gtk` a relative symlink to it, the desktop entry and
 Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of it:
-- `packaging/deb/build-deb.sh`: `dpkg-deb` alone (no fakeroot or debhelper). `Depends` is written
-  by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's `PublicHTTPClient` runs
-  `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a library is added. libzbar
+- `packaging/deb/build-deb.sh`: `dpkg-deb` and `dpkg-shlibdeps` (no fakeroot or debhelper).
+  `Depends` is `dpkg-shlibdeps`' list for the system building it (Debian and Ubuntu name some
+  libraries differently), with GTK raised to 4.18 (its symbols alone say 4.12), plus `curl`
+  (upstream's `PublicHTTPClient` runs `/usr/bin/curl`) and `librsvg2-common` (SVG logos). libzbar
   (Scan QR code, opened with `dlopen`) is in `Recommends`, and in the RPM's and Arch's weak
   dependencies.
 - `packaging/rpm/build-rpm.sh` with `signet-gtk.spec`: rpmbuild packages the staged tree; rpm finds
@@ -97,15 +98,44 @@ Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of i
   for `~/.local`, or `--prefix`; it writes the launcher with the program's full path and keeps a
   manifest for `uninstall.sh`).
 - `packaging/arch/build-arch.sh`: `signet-gtk-bin`, a PKGBUILD over the release tarball (its
-  download URL and checksum filled in from `PKGBUILD.in`), built here with makepkg; `dist/arch`
-  holds the PKGBUILD and `.SRCINFO` for the AUR.
-- `apt/aptrepo.sh`: publishes the `.deb`s in `dist` to the apt repository
+  download URL and checksum filled in from `PKGBUILD.in`), built with makepkg from a tarball
+  made on Arch; `dist/arch` holds the PKGBUILD and `.SRCINFO` for the AUR.
+- `apt/aptrepos.sh`: publishes the `.deb`s in `dist` to the apt repository
   (`s3://apt.signetwallet.org`, from the reprepro tree in `apt/repos`; keys in `apt/keys`). The
   user runs it by hand, since the packages are signed with their GPG key: Claude never runs or
   automates it, and stops at a built `.deb`.
 
-`packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the last tag
-plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
+Packages go in `dist/<platform>/`, the platform named by `packaging/distdir.sh` from
+`/etc/os-release` as pkg-builder's apt script (`apt/aptrepos.sh`) reads them: `debian-13`,
+`ubuntu-2604`, `fedora-45`, `arch` (which also holds the AUR's PKGBUILD). A tarball built
+anywhere but Debian 13 is named for its platform (`signet-gtk-<version>-arch-x86_64.tar.xz`, what
+`signet-gtk-bin` downloads), so it does not clash with the released Debian one.
+
+`packaging/farm` is the build farm: Docker images (`Dockerfile.deb` for Debian and Ubuntu,
+`.rpm` for Fedora, `.arch`) with each system's development packages and Swift from swiftly
+(`install-swift.sh`; `SWIFT_VERSION` in `build.sh`, kept the same as the development machine's),
+run as a user with the caller's uid. `build.sh [target…]` copies the working tree in, keeps
+`.build` in a volume per target, and writes into `dist/<target>`; `smoke.sh [target…]` installs
+each package into a clean image of its system and starts it under Xvfb (`dist/smoke/`).
+Rocky/RHEL 10 is not a target: it has GTK 4.16 and libadwaita 1.6, older than Signet needs.
+The build and smoke test pass on all four (November 2026). What each system needed:
+- Swift is swift.org's 6.4.2: Debian's and Ubuntu's own builds, Fedora 41's on Fedora (with
+  `libxml2_2.13` for its `libxml2.so.2`), UBI 9's on Arch (with a `libncurses.so.6` symlink).
+- Swift Build reads `ld -version_details` and knows Fedora's GNU ld banner only with a release
+  after the version, which Fedora 45's lacks; the Fedora image makes gold its `ld`. A failed
+  probe is remembered in `.build`: after changing the linker, `docker volume rm` the target's.
+- GLib 2.88 (Ubuntu 26.04, Fedora 45, Arch) marks flag enums `G_GNUC_FLAG_ENUM`, which Swift
+  imports as an OptionSet without its zero member: write `GFileMonitorFlags(rawValue: 0)`, not
+  `G_FILE_MONITOR_NONE`, so Debian's 2.84 builds too.
+- `/etc/os-release` sets `VERSION`; scripts read it in a subshell so it does not replace the
+  package version. Arch's Docker image gives a `VERSION_ID` (the image date) beside
+  `BUILD_ID=rolling`, which `distdir.sh` treats as rolling.
+- `build-arch.sh` takes only a pacman version, so an Arch test build needs one:
+  `VERSION=0.9.19.r20261118 packaging/farm/build.sh arch` (and the same for `smoke.sh`).
+FreeBSD needs a VM, which needs VT-x (off in this machine's firmware so far).
+
+`packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the highest tag
+(release tags are on `release`, outside `main`'s history) plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
 release. The app is single-instance per D-Bus session, so to try a packaged build beside a
 running Signet use `dbus-run-session -- …/bin/signet-gtk`. The submodule URL is HTTPS so a
 `git clone --recursive` works without an SSH key.

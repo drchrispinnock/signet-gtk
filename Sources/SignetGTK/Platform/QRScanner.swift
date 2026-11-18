@@ -118,7 +118,8 @@ final class CameraWatcher {
         guard ZBar.shared != nil else { return }
         let dev = g_file_new_for_path("/dev")
         defer { g_object_unref(UnsafeMutableRawPointer(dev)) }
-        guard let monitor = g_file_monitor_directory(dev, G_FILE_MONITOR_NONE, nil, nil) else { return }
+        // GLib 2.88 makes the flags a flag enum, which Swift imports without its zero, NONE.
+        guard let monitor = g_file_monitor_directory(dev, GFileMonitorFlags(rawValue: 0), nil, nil) else { return }
         self.monitor = monitor
         Signals.connect(Widget(monitor), "changed") { [weak self] in
             self?.pending?.cancel()

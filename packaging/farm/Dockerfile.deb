@@ -1,0 +1,23 @@
+# Debian and Ubuntu: builds the .deb (and on Debian 13, the release tarball).
+ARG BASE=debian:13
+FROM ${BASE}
+ARG UID=1000
+ARG SWIFT_VERSION
+ARG SWIFTLY_PLATFORM=
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git gnupg2 tzdata xz-utils unzip file \
+        binutils build-essential libcurl4-openssl-dev libedit-dev libncurses-dev libpython3-dev \
+        libsqlite3-dev libxml2-dev libz3-dev uuid-dev \
+        pkg-config libgtk-4-dev libadwaita-1-dev libjavascriptcoregtk-6.0-dev libwebkitgtk-6.0-dev \
+        libhidapi-dev libwebp-dev zlib1g-dev dpkg-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu's image has a user "ubuntu" with uid 1000.
+RUN (userdel -r ubuntu 2>/dev/null || true) && useradd -m -u "$UID" builder \
+    && install -d -o builder -g builder /work /work/.build /work/dist
+COPY install-swift.sh /usr/local/bin/install-swift
+USER builder
+RUN SWIFT_VERSION="$SWIFT_VERSION" SWIFTLY_PLATFORM="$SWIFTLY_PLATFORM" install-swift
+WORKDIR /work

@@ -148,11 +148,14 @@ GSK_RENDERER=cairo signet-gtk/.build/release/signet-gtk
 On Debian 13, from a source checkout, after building once:
 
 ```sh
-packaging/deb/build-deb.sh          # dist/signet-gtk_<version>_<arch>.deb       (needs dpkg-deb)
-packaging/tarball/build-tarball.sh  # dist/signet-gtk-<version>-linux-<arch>.tar.xz
+packaging/deb/build-deb.sh          # dist/debian-13/signet-gtk_<version>_<arch>.deb       (needs dpkg-deb)
+packaging/tarball/build-tarball.sh  # dist/debian-13/signet-gtk-<version>-linux-<arch>.tar.xz
 ```
 
-`packaging/rpm` and `packaging/arch` build only on the systems they package for.
+`packaging/rpm` and `packaging/arch` build only on the systems they package for. With Docker,
+`packaging/farm/build.sh` builds every package on its own system, in containers, into
+`dist/<platform>/` (`debian-13`, `ubuntu-2604`, `fedora-45`, `arch`), and
+`packaging/farm/smoke.sh` installs each into a clean container and starts it.
 
 The version is the repository's tag when the commit is tagged (`v0.8` gives `0.8`), otherwise the
 last tag plus the date and commit; `VERSION=…` overrides it. `SKIP_BUILD=1` reuses the release
