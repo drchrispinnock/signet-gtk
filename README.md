@@ -13,8 +13,8 @@ bridge and dApps on its Michelson side) and shielded tez on the TzEL rollup.
 
 ## Install
 
-Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). They
-are built on, and supported on, **Debian 13 (trixie) on amd64** only. Each has the Swift runtime
+Packages for **Debian 13 (trixie)** on amd64 are on the
+[releases page](https://github.com/drchrispinnock/signet-gtk/releases), with the Swift runtime
 linked in.
 
 - **Debian 13:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
@@ -25,10 +25,6 @@ linked in.
 Signet then appears in the applications menu. The package installs a udev rule that lets you use
 a Ledger without root; with the tarball's `--user` install, `install.sh` prints the one command
 that adds it.
-
-Other distributions (Ubuntu, Fedora, Rocky, openSUSE, Arch) are not supported by these packages:
-they do not work there. Packages built natively on each are planned; until then, build from
-source on those systems.
 
 ## Build from source
 
@@ -78,8 +74,8 @@ program, so it runs on a machine without Swift. The program looks for its resour
 makes a debug build in `.build/debug`. To update later: `git pull && git submodule update`, then
 build again.
 
-Other distributions are untested; they need the same libraries under their own names (GTK 4.18
-and libadwaita 1.7 or newer), and `swiftly init` lists what Swift needs there.
+Elsewhere, install the same libraries under their own names (GTK 4.18 and libadwaita 1.7 or
+newer); `swiftly init` lists what Swift needs.
 
 Run the tests with:
 
@@ -156,8 +152,7 @@ packaging/deb/build-deb.sh          # dist/signet-gtk_<version>_<arch>.deb      
 packaging/tarball/build-tarball.sh  # dist/signet-gtk-<version>-linux-<arch>.tar.xz
 ```
 
-`packaging/rpm` and `packaging/arch` build only on the systems they package for (Fedora, RHEL
-or openSUSE; Arch): packages built on Debian did not work there.
+`packaging/rpm` and `packaging/arch` build only on the systems they package for.
 
 The version is the repository's tag when the commit is tagged (`v0.8` gives `0.8`), otherwise the
 last tag plus the date and commit; `VERSION=…` overrides it. `SKIP_BUILD=1` reuses the release

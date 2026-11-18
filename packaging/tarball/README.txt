@@ -13,7 +13,7 @@ Remove
 
 Or run it in place: ./bin/signet-gtk
 
-Built for and supported on Debian 13 (trixie) only. It needs these Debian packages:
+Made for Debian 13 (trixie). It uses these Debian packages:
   libgtk-4-1, libadwaita-1-0, libjavascriptcoregtk-6.0-1, libhidapi-hidraw0,
   libwebp7, libcurl4t64, curl, librsvg2-common
 
