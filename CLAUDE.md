@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **signet-gtk**: a port of **Signet**, the macOS Tezos wallet written in SwiftUI, to Linux first and
 then the BSDs. Linux is the primary target. FreeBSD builds and runs too (see "FreeBSD" below), with
-Swift's FreeBSD preview toolchain. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
+FreeBSD's own `swift6` package. NetBSD and OpenBSD are aims rather than promises: Swift is barely available
 there (OpenBSD has no libdispatch, so no async/await). Keep code portable anyway: hidapi for
 Ledger rather than Linux hidraw, POSIX `lockf` for `wallet_lock`, and no Linux-only paths or
 syscalls outside `Sources/SignetGTK/Platform`.
@@ -54,17 +54,30 @@ under the toolchain's `lldb` to get one.
 
 ## FreeBSD
 
-Tried on FreeBSD 15.1 (amd64) with a Swift 6.5-dev CI snapshot unpacked in `~/swift`
-(`export PATH=$HOME/swift/usr/bin:$PATH`; its own `lldb` does not load, the base system's
-`/usr/bin/lldb` does). Packages: `gtk4 libadwaita webkit2-gtk_60 hidapi webp pkgconf curl`, plus
+Tried on FreeBSD 15.1 (amd64), first with a Swift 6.5-dev CI snapshot unpacked in `~/swift`, now
+in a VM on this machine with the `swift6` package (6.4.0, `PATH=/usr/local/swift6/usr/local/bin`;
+its `lldb` does not load, the base system's `/usr/bin/lldb` does). The VM is in `~/vm/freebsd`
+(not in the repository): `run.sh` boots it headless under QEMU/KVM with SSH on `127.0.0.1:2222`
+(`ssh -p 2222 -i ~/vm/freebsd/id_vm -o UserKnownHostsFile=~/vm/freebsd/known_hosts cjep@127.0.0.1`),
+the disk an overlay of the 15.1 BASIC-CLOUDINIT image, the user `cjep` (wheel, passwordless sudo)
+made by the cloud-init seed `seed.iso`. Copy the working tree in with `tar` over that SSH,
+leaving out `.build` and `dist`. Packages: `gtk4 libadwaita webkit2-gtk_60 hidapi webp pkgconf curl`, plus
 a font (`dejavu`; with no font at all GTK lays the window out tens of thousands of pixels tall and
 draws nothing) and `python3` for two lock tests (run as `/usr/local/bin/python3` there). `swift build` and `swift test` work as on Linux
-(last tried there before the audit fixes of November 2026). What differs, each behind `#if`:
+(the whole suite passed in the VM on 19 November 2026). What differs, each behind `#if`:
 - hidapi's pkg-config name is `hidapi` (Linux: `hidapi-hidraw`), chosen in `Package.swift`;
   `CHidapi`'s module map names no library, so pkg-config's flags do the linking.
 - Ports install under `/usr/local`: upstream's `PublicHTTPClient` runs `/usr/local/bin/curl`.
 - `getnameinfo` takes `size_t` lengths (upstream's `EndpointPolicy`).
 - The lock tests' python is `/usr/local/bin/python3`.
+- Swift 6.4's libdispatch hands FreeBSD a pipe, not an eventfd, for the main queue: the handle is
+  a `uint64_t` with the read end in the high half. `MainLoop` watches that end (declared again
+  in `shim.h` as `signet_dispatch_main_queue_pipe_4CF`); 6.5's libdispatch has an eventfd again,
+  hence `!compiler(>=6.5)`. Without it no `@MainActor` task ran and the status bar stayed on
+  "Checking…".
+- FreeBSD 15's headers make `SHUT_RDWR` an enum (`.rawValue`) and Foundation does not export
+  `inet_addr`.
+- The QR tests need `zbar` installed (it is opened with `dlopen`, so they fail rather than skip).
 - `--static-swift-stdlib` needs libexecinfo (`backtrace()`), linked by `Package.swift`.
 - Foundation makes a missing `~/.config` with a file's mode (`rw-rw-rw-`, no execute bit), after
   which `UserDefaults` never saves (and other programs lose `~/.config`); `SignetApp.run` makes
@@ -83,26 +96,69 @@ package needs a Swift toolchain) and lays out what every format installs:
 `PREFIX/lib/signet-gtk/signet-gtk` with `signet-gtk_Signet.bundle` beside it (where
 `Bundle.module` looks), `PREFIX/bin/signet-gtk` a relative symlink to it, the desktop entry and
 Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of it:
-- `packaging/deb/build-deb.sh`: `dpkg-deb` alone (no fakeroot or debhelper). `Depends` is written
-  by hand from the binary's `NEEDED` libraries, plus `curl` (upstream's `PublicHTTPClient` runs
-  `/usr/bin/curl`) and `librsvg2-common` (SVG logos); check it when a library is added. libzbar
+- `packaging/deb/build-deb.sh`: `dpkg-deb` and `dpkg-shlibdeps` (no fakeroot or debhelper).
+  `Depends` is `dpkg-shlibdeps`' list for the system building it (Debian and Ubuntu name some
+  libraries differently), with GTK raised to 4.18 (its symbols alone say 4.12), plus `curl`
+  (upstream's `PublicHTTPClient` runs `/usr/bin/curl`) and `librsvg2-common` (SVG logos). libzbar
   (Scan QR code, opened with `dlopen`) is in `Recommends`, and in the RPM's and Arch's weak
   dependencies.
 - `packaging/rpm/build-rpm.sh` with `signet-gtk.spec`: rpmbuild packages the staged tree; rpm finds
-  the library dependencies itself, so one RPM serves Fedora 42+ and openSUSE Tumbleweed.
+  the library dependencies itself. Built on Debian, the RPM did not work on Rocky (nor the
+  Arch package or the `.deb` on Ubuntu), so it and `build-arch.sh` refuse to run anywhere but
+  their own systems (`/etc/os-release`), for a build farm to make them natively.
+  Only the `.deb` and the tarball are released, and the README supports Debian 13 alone.
 - `packaging/tarball/build-tarball.sh`: the staged tree with `install.sh` (`/usr/local`, `--user`
   for `~/.local`, or `--prefix`; it writes the launcher with the program's full path and keeps a
   manifest for `uninstall.sh`).
 - `packaging/arch/build-arch.sh`: `signet-gtk-bin`, a PKGBUILD over the release tarball (its
-  download URL and checksum filled in from `PKGBUILD.in`), built here with makepkg; `dist/arch`
-  holds the PKGBUILD and `.SRCINFO` for the AUR.
-- `apt/aptrepo.sh`: publishes the `.deb`s in `dist` to the apt repository
+  download URL and checksum filled in from `PKGBUILD.in`), built with makepkg from a tarball
+  made on Arch; `dist/arch` holds the PKGBUILD and `.SRCINFO` for the AUR.
+- `packaging/freebsd/build-pkg.sh`: `pkg create` over the staged tree (`/usr/local`), built in
+  the FreeBSD VM against the quarterly branch, into `dist/freebsd-15`. Not a port: the package
+  is for Signet's own pkg repository, whose catalogue `pkg repo` makes and the user signs (as
+  with apt). Dependencies are the installed packages' names and versions; pkg has no weak ones,
+  so zbar is a hard dependency. On FreeBSD `stage.sh` builds with `--build-system native
+  -Xswiftc -static-stdlib` in `.build-freebsd`: SwiftPM 6.4's Swift Build spins forever planning
+  a `--static-swift-stdlib` build there, and the native build system ignores that option off
+  Linux (`isSupportingStaticStdlib`). The native build names the resources
+  `signet-gtk_Signet.resources`, and the binary looks for that name. Tried by installing from an
+  unsigned local repository into a throwaway VM from the untouched image (`run-clean.sh`).
+- `apt/aptrepos.sh`: publishes the `.deb`s in `dist` to the apt repository
   (`s3://apt.signetwallet.org`, from the reprepro tree in `apt/repos`; keys in `apt/keys`). The
   user runs it by hand, since the packages are signed with their GPG key: Claude never runs or
   automates it, and stops at a built `.deb`.
 
-`packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the last tag
-plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
+Packages go in `dist/<platform>/`, the platform named by `packaging/distdir.sh` from
+`/etc/os-release` as pkg-builder's apt script (`apt/aptrepos.sh`) reads them: `debian-13`,
+`ubuntu-2604`, `fedora-45`, `arch` (which also holds the AUR's PKGBUILD). A tarball built
+anywhere but Debian 13 is named for its platform (`signet-gtk-<version>-arch-x86_64.tar.xz`, what
+`signet-gtk-bin` downloads), so it does not clash with the released Debian one.
+
+`packaging/farm` is the build farm: Docker images (`Dockerfile.deb` for Debian and Ubuntu,
+`.rpm` for Fedora, `.arch`) with each system's development packages and Swift from swiftly
+(`install-swift.sh`; `SWIFT_VERSION` in `build.sh`, kept the same as the development machine's),
+run as a user with the caller's uid. `build.sh [target…]` copies the working tree in, keeps
+`.build` in a volume per target, and writes into `dist/<target>`; `smoke.sh [target…]` installs
+each package into a clean image of its system and starts it under Xvfb (`dist/smoke/`).
+Rocky/RHEL 10 is not a target: it has GTK 4.16 and libadwaita 1.6, older than Signet needs.
+The build and smoke test pass on all four (November 2026). What each system needed:
+- Swift is swift.org's 6.4.2: Debian's and Ubuntu's own builds, Fedora 41's on Fedora (with
+  `libxml2_2.13` for its `libxml2.so.2`), UBI 9's on Arch (with a `libncurses.so.6` symlink).
+- Swift Build reads `ld -version_details` and knows Fedora's GNU ld banner only with a release
+  after the version, which Fedora 45's lacks; the Fedora image makes gold its `ld`. A failed
+  probe is remembered in `.build`: after changing the linker, `docker volume rm` the target's.
+- GLib 2.88 (Ubuntu 26.04, Fedora 45, Arch) marks flag enums `G_GNUC_FLAG_ENUM`, which Swift
+  imports as an OptionSet without its zero member: write `GFileMonitorFlags(rawValue: 0)`, not
+  `G_FILE_MONITOR_NONE`, so Debian's 2.84 builds too.
+- `/etc/os-release` sets `VERSION`; scripts read it in a subshell so it does not replace the
+  package version. Arch's Docker image gives a `VERSION_ID` (the image date) beside
+  `BUILD_ID=rolling`, which `distdir.sh` treats as rolling.
+- `build-arch.sh` takes only a pacman version, so an Arch test build needs one:
+  `VERSION=0.9.19.r20261118 packaging/farm/build.sh arch` (and the same for `smoke.sh`).
+FreeBSD is not in the farm; it is built and tried in the VM (see "FreeBSD").
+
+`packaging/version.sh` gives the version: the tag on HEAD (`v0.8` → `0.8`), else the highest tag
+(release tags are on `release`, outside `main`'s history) plus date and commit. A release is tagged on `release`, built, and the files go on the GitHub
 release. The app is single-instance per D-Bus session, so to try a packaged build beside a
 running Signet use `dbus-run-session -- …/bin/signet-gtk`. The submodule URL is HTTPS so a
 `git clone --recursive` works without an SSH key.

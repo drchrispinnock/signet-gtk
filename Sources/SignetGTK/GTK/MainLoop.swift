@@ -8,6 +8,17 @@ import Foundation
 /// the way CoreFoundation's run loop does on the Mac.
 enum MainLoop {
     static func attachMainQueue() {
+        #if os(FreeBSD) && !compiler(>=6.5)
+        // A pipe: watch its read end (the handle's high half; the low half is the write end,
+        // which never becomes readable) and empty it, since each wakeup writes a byte.
+        let fd = Int32(truncatingIfNeeded: signet_dispatch_main_queue_pipe_4CF() >> 32)
+        g_unix_fd_add(fd, G_IO_IN, { fd, _, _ in
+            var bytes = [UInt8](repeating: 0, count: 64)
+            while read(fd, &bytes, bytes.count) > 0 {}
+            _dispatch_main_queue_callback_4CF(nil)
+            return gboolean(1)   // G_SOURCE_CONTINUE
+        }, nil)
+        #else
         let fd = _dispatch_get_main_queue_handle_4CF()
         g_unix_fd_add(fd, G_IO_IN, { fd, _, _ in
             // The descriptor is an eventfd: clear it, then run what is queued.
@@ -16,5 +27,6 @@ enum MainLoop {
             _dispatch_main_queue_callback_4CF(nil)
             return gboolean(1)   // G_SOURCE_CONTINUE
         }, nil)
+        #endif
     }
 }

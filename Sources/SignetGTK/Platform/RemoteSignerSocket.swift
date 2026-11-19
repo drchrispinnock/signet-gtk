@@ -43,7 +43,11 @@ final class FramedConnection: @unchecked Sendable {
     func close() {
         lock.withLock {
             closed = true
+            #if os(FreeBSD)
+            if socket >= 0 { shutdown(socket, Int32(SHUT_RDWR.rawValue)) }   // an enum in FreeBSD 15's headers
+            #else
             if socket >= 0 { shutdown(socket, Int32(SHUT_RDWR)) }
+            #endif
         }
     }
 
