@@ -15,18 +15,23 @@ cd "$ROOT"
 VERSION=${VERSION:-$(packaging/version.sh)}
 [ $# -gt 0 ] || set -- debian-13 ubuntu-2604 fedora-45 arch
 mkdir -p dist/smoke
+# Packages are for the machine's own architecture (arm64 on an Apple Silicon Mac's Docker).
+case "$(uname -m)" in
+    arm64|aarch64) deb_arch=arm64 rpm_arch=aarch64 ;;
+    *)             deb_arch=amd64 rpm_arch=x86_64 ;;
+esac
 
 failed=
 for target in "$@"; do
     case "$target" in
         debian-13|ubuntu-*)
             [ "$target" = debian-13 ] && image=debian:13 || image="ubuntu:$(echo "${target#ubuntu-}" | sed 's/../&./')"
-            pkg="signet-gtk_${VERSION}_amd64.deb"
+            pkg="signet-gtk_${VERSION}_${deb_arch}.deb"
             install="export DEBIAN_FRONTEND=noninteractive; apt-get update -qq &&
                 apt-get install -y -qq /pkgs/$pkg xvfb xdotool imagemagick dbus-daemon fonts-dejavu-core >/dev/null" ;;
         fedora-*)
             image="fedora:${target#fedora-}"
-            pkg="signet-gtk-$VERSION-1.x86_64.rpm"
+            pkg="signet-gtk-$VERSION-1.$rpm_arch.rpm"
             install="dnf install -y -q /pkgs/$pkg xorg-x11-server-Xvfb xdotool ImageMagick dbus-daemon dejavu-sans-fonts >/dev/null" ;;
         arch)
             image=archlinux:latest
