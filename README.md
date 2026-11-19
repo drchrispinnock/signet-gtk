@@ -85,39 +85,50 @@ swift build --build-tests && swift test --skip-build --no-parallel
 
 ### FreeBSD
 
-Signet builds and runs on FreeBSD with Swift's FreeBSD preview toolchain (see
-[swift.org/install](https://www.swift.org/install/)). These steps have been tried on FreeBSD 15.1
-on amd64, with a Swift 6.5 development snapshot made for FreeBSD 14.
+Signet builds and runs on FreeBSD with FreeBSD's own Swift package, `swift6`. These steps have
+been tried on FreeBSD 15.1 on amd64 with `swift6` 6.4. FreeBSD builds that package only for
+amd64 (and powerpc64le), so there is no arm64 Swift to build with yet.
 
-**1. Packages.** The first line is what the Swift toolchain needs (`compat14x-amd64` only when
-running a toolchain made for FreeBSD 14 on 15), the second is for Signet. GTK needs at least one
-font installed: with none, the window comes up blank.
+**1. Packages.** `swift6` is the compiler, the rest is for Signet. GTK needs at least one font
+installed: with none, the window comes up blank.
 
 ```sh
-sudo pkg install git curl sqlite3 libuuid compat14x-amd64 \
-    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp zbar dejavu adwaita-icon-theme
+sudo pkg install swift6 git pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp curl \
+    zbar dejavu adwaita-icon-theme
 ```
 
-**2. Swift.** The toolchain is a tarball holding a `usr` directory; unpack it anywhere and put its
-`usr/bin` on your path, for example:
+zbar is only opened when Signet runs: without it Signet works, but Scan QR code does not show.
+
+**2. Swift.** The package installs under `/usr/local/swift6`; put its `bin` on your path:
 
 ```sh
-mkdir ~/swift && tar xzf <toolchain>.tar.gz -C ~/swift
-export PATH=$HOME/swift/usr/bin:$PATH     # sh; for csh: set path = ($HOME/swift/usr/bin $path)
+export PATH=/usr/local/swift6/usr/local/bin:$PATH   # sh; for csh: set path = (/usr/local/swift6/usr/local/bin $path)
 swift --version
 ```
 
-**3. Signet** builds the same way as on Linux:
+**3. Signet.** Clone it with the Mac app as a submodule, build and run:
 
 ```sh
 git clone --recursive https://github.com/drchrispinnock/signet-gtk.git
 cd signet-gtk
-swift build -c release --static-swift-stdlib
+swift build -c release
 .build/release/signet-gtk
 ```
 
-The tests run as on Linux too; two of them need `python3` (`sudo pkg install python3`). Using a
-Ledger on FreeBSD has not been tried yet.
+This build uses the Swift runtime from the `swift6` package, so keep the package installed. To
+link the runtime in instead, so that the program runs on a machine without `swift6`, use the
+build `packaging/stage.sh` makes for the FreeBSD package (with Swift 6.4, `--static-swift-stdlib`
+on its own is ignored on FreeBSD, or never finishes):
+
+```sh
+swift build -c release -Xswiftc -static-stdlib --build-system native --scratch-path .build-freebsd
+.build-freebsd/release/signet-gtk
+```
+
+Its resources are in `signet-gtk_Signet.resources` beside it: copy both together if you move it.
+
+The tests run as on Linux. Two of them need `python3` (`sudo pkg install python3`), and the QR
+code tests need zbar. Using a Ledger on FreeBSD has not been tried yet.
 
 If the window comes up blank and the terminal fills with GTK warnings about labels needing a
 height of over a million pixels, no font is installed: `sudo pkg install dejavu`, quit Signet and
