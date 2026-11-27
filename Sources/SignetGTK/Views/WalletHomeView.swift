@@ -289,6 +289,7 @@ final class WalletHomeView {
         case "scan-qr": ScanQRSheet(model: model)
         case "networks": NetworksSheet(model: model)
         case "bridge": BridgeSheet(model: model)
+        case "move-assets": MoveAssetsSheet(model: model)
         case "shield": ShieldSheet(model: model)
         case "unshield": UnshieldSheet(model: model)
         case "send-shielded": SendShieldedSheet(model: model)
@@ -319,6 +320,7 @@ final class DashboardView {
     private let menu: AppMenuButton
     private let actions: ActionButtonsView
     private let activity: ActivityTabsView
+    private let expiring: ExpiringDomainsNotice
     private let balances = UI.vbox(spacing: 24)
     private var assets: AssetListView?
     private var delegate: DelegateRowView?
@@ -334,7 +336,8 @@ final class DashboardView {
         actions = ActionButtonsView(model: model)
         let header = UI.hbox(spacing: 8, [identity.root.expand(h: true), badge.root.align(v: GTK_ALIGN_START), menu.root.align(v: GTK_ALIGN_START)])
         activity = ActivityTabsView(model: model)
-        children = [header, actions.root, balances, UI.separator(), activity.root]
+        expiring = ExpiringDomainsNotice(model: model)
+        children = [header, expiring.root, actions.root, balances, UI.separator(), activity.root]
         tracker = Tracker { [unowned self] in self.updateBalances() }
     }
 
@@ -435,5 +438,44 @@ enum StartOption {
         let button = UI.button(content: row, classes: ["start-option"] + (prominent ? ["prominent"] : []), action: action)
         button.accessibleLabel("\(title). \(detail)")
         return button
+    }
+}
+
+/// The user's Tezos Domains names that expire within two months, on the dashboard, soonest
+/// first, each with a Renew link to Tezos Domains; dismissable for the session. Shown while
+/// `model.expiringDomains` has any and it was not dismissed. Upstream's `ExpiringDomainsNotice`.
+@MainActor
+final class ExpiringDomainsNotice {
+    let model: WalletViewModel
+    let root: Widget
+    private let lines = UI.vbox(spacing: 4)
+    private var tracker: Tracker?
+
+    init(model: WalletViewModel) {
+        self.model = model
+        let icon = UI.image(icon: "x-office-calendar-symbolic", pixelSize: 20).classes("warning-text").align(v: GTK_ALIGN_START)
+        let close = UI.iconButton("window-close-symbolic", tooltip: "Hide until Signet starts again") { [model] in model.expiringDomainsDismissed = true }
+        close.align(v: GTK_ALIGN_START)
+        root = UI.hbox(spacing: 10, [icon, lines.expand(h: true), close]).classes("expiring-domains")
+        tracker = Tracker { [unowned self] in self.update() }
+    }
+
+    private func update() {
+        let names = model.expiringDomains
+        root.isVisible = !names.isEmpty && !model.expiringDomainsDismissed
+        guard root.isVisible else { return }
+        let now = Date()
+        var rows: [Widget] = names.prefix(3).map { name in
+            var line = [UI.label("\(name.name) expires \(DomainReminders.phrase(until: name.expires, now: now))", classes: ["heading"]),
+                        UI.label("· \(name.owner)", classes: ["dim-label"])]
+            if let url = URL(string: "https://app.tezos.domains/domain/\(name.name)") {
+                line.append(Widget(gtk_link_button_new_with_label(url.absoluteString, "Renew")!).classes("flat"))
+            }
+            return UI.hbox(spacing: 6, line)
+        }
+        if names.count > 3 {
+            rows.append(UI.label("and \(names.count - 3) more", classes: ["dim-label", "caption"]))
+        }
+        lines.setChildren(rows)
     }
 }
