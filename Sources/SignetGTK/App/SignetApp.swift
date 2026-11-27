@@ -14,7 +14,7 @@ enum SignetApp {
     static let gettingStartedURL = URL(string: "https://leanpub.com/read/tezossignet/ID110-starting_1_Getting")!
     /// Signet's website, opened from the burger menu.
     static let websiteURL = URL(string: "https://signetwallet.org")!
-    static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
+    nonisolated static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
     /// The app's model, as upstream builds it. Under a test host it is built on in-memory stores
     /// only (S24).
