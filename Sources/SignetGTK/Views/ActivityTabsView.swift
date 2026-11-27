@@ -379,7 +379,8 @@ enum RelativeTime {
     }
 }
 
-/// The Assets tab: fungible (DeFi) token balances with their logos.
+/// The Assets tab: fungible (DeFi) token balances with their logos. A right-click offers
+/// Transfer… when the account can sign for the token's layer.
 @MainActor
 final class TokenListView {
     let model: WalletViewModel
@@ -411,7 +412,7 @@ final class TokenListView {
         let network = model.network
         var children: [Widget] = []
         for token in tokens {
-            children.append(TokenRowView.make(token: token, network: network))
+            children.append(TokenRowView.make(token: token, network: network, model: model))
             children.append(UI.separator().margins(start: 56))
         }
         list.setChildren(children)
@@ -454,7 +455,7 @@ extension Portfolio.State {
 
 @MainActor
 enum TokenRowView {
-    static func make(token: AssetBalance, network: Network) -> Widget {
+    static func make(token: AssetBalance, network: Network, model: WalletViewModel? = nil) -> Widget {
         var contract: String?
         if case .token(let address, _) = token.kind { contract = address }
         // The explorer the token's contract is on: Etherlink's for a layer 2 token.
@@ -480,12 +481,21 @@ enum TokenRowView {
         let row = UI.hbox(spacing: 12, [logo, text, UI.hbox(spacing: 5, amount).align(v: GTK_ALIGN_CENTER)]).margins(top: 8, bottom: 8)
         row.tooltip((token.isLayer2 ? "On \(Brand.l2)\n" : "") + (contract.map { "\(token.name)\n\($0)" } ?? token.name))
         row.accessibleLabel("\(token.name) \(token.formattedAmount)\(token.isLayer2 ? ", on \(Brand.l2)" : "")")
-        if let contract {
-            var items: [(String, @MainActor () -> Void)] = [("Copy contract address", { UI.copyToClipboard(contract, from: row) })]
-            if let url = explorer?.explorerURL(contract: contract) {
-                items.append(("View in explorer", { UI.open(url, from: row) }))
-            }
-            UI.contextMenu(row, items)
+        let viewURL = contract.flatMap { explorer?.explorerURL(contract: $0) }
+        if contract != nil || model != nil {
+            // Built as it opens, so Transfer… follows whether the account can sign right now.
+            UI.contextMenu(row, build: { [weak model] in
+                var entries: [UI.MenuEntry] = []
+                if let model, model.canTransferToken(token) {
+                    entries += [.item("Transfer…") { model.tokenOperation = token }, .separator]
+                }
+                if let contract {
+                    entries.append(.item("Copy contract address") { UI.copyToClipboard(contract, from: row) })
+                    if let viewURL { entries.append(.item("View in explorer") { UI.open(viewURL, from: row) }) }
+                }
+                if case .separator = entries.last { entries.removeLast() }
+                return entries
+            })
         }
         return row
     }

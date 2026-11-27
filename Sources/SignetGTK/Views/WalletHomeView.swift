@@ -162,8 +162,10 @@ final class WalletHomeView {
 
     private var nftOperation: TransferNFTSheet?
     private var nftDownload: DownloadNFTsSheet?
+    private var tokenOperation: TransferTokenSheet?
+    private var domainOperation: TransferDomainSheet?
 
-    /// `.sheet(item: $model.nftOperation)` and `.sheet(item: $model.nftDownload)`: each shown
+    /// `.sheet(item:)` for `nftOperation`, `tokenOperation`, `domainOperation` and `nftDownload`: each shown
     /// while its item is set, the item cleared when the sheet closes.
     private func presentNFTSheets() {
         let operation = model.nftOperation
@@ -179,6 +181,38 @@ final class WalletHomeView {
                     guard let self, self.nftOperation === view else { return }
                     self.nftOperation = nil
                     model.nftOperation = nil
+                }
+                view.present(over: root)
+            }
+        }
+        let token = model.tokenOperation
+        if tokenOperation?.token != token {
+            let old = tokenOperation
+            tokenOperation = nil
+            old?.dismiss()
+            if let token {
+                let view = TransferTokenSheet(model: model, token: token)
+                tokenOperation = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.tokenOperation === view else { return }
+                    self.tokenOperation = nil
+                    model.tokenOperation = nil
+                }
+                view.present(over: root)
+            }
+        }
+        let domain = model.domainOperation
+        if domainOperation?.domain != domain {
+            let old = domainOperation
+            domainOperation = nil
+            old?.dismiss()
+            if let domain {
+                let view = TransferDomainSheet(model: model, domain: domain)
+                domainOperation = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.domainOperation === view else { return }
+                    self.domainOperation = nil
+                    model.domainOperation = nil
                 }
                 view.present(over: root)
             }

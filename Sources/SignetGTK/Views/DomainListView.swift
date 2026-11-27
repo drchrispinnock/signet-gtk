@@ -73,10 +73,16 @@ enum DomainRowView {
         let text = UI.vbox(spacing: 3, [UI.hbox(spacing: 6, nameRow), detailLabel]).expand(h: true).align(v: GTK_ALIGN_CENTER)
 
         let row = UI.hbox(spacing: 12, [icon.align(v: GTK_ALIGN_CENTER), text, expiry(domain).align(v: GTK_ALIGN_CENTER)]).classes("transaction-row")
-        var items: [(String, @MainActor () -> Void)] = [("Copy Name", { UI.copyToClipboard(domain.name, from: row) })]
-        if let address = domain.address { items.append(("Copy Address It Points To", { UI.copyToClipboard(address.value, from: row) })) }
-        if let url = domain.appURL { items.append(("Open on Tezos Domains", { UI.open(url, from: row) })) }
-        UI.contextMenu(row, items)
+        UI.contextMenu(row, build: { [weak model] in
+            var entries: [UI.MenuEntry] = []
+            if let model, model.canTransferDomain(domain) {
+                entries += [.item("Transfer…") { model.domainOperation = domain }, .separator]
+            }
+            entries.append(.item("Copy Name") { UI.copyToClipboard(domain.name, from: row) })
+            if let address = domain.address { entries.append(.item("Copy Address It Points To") { UI.copyToClipboard(address.value, from: row) }) }
+            if let url = domain.appURL { entries.append(.item("Open on Tezos Domains") { UI.open(url, from: row) }) }
+            return entries
+        })
         return row
     }
 
