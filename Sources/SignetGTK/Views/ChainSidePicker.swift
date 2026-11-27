@@ -6,11 +6,12 @@ enum ChainSide: String, CaseIterable, Identifiable {
     case tezos = "Tezos", etherlink = "Etherlink"
     var id: String { rawValue }
     /// The logo shipped as a resource (upstream's asset names `TezosToken` and `EtherlinkLogo`).
-    var logo: (name: String, ext: String) { self == .tezos ? ("tezos-token-round", "svg") : ("etherlink-avatar", "svg") }
+    var logo: (name: String, ext: String) { self == .tezos ? ("tezos-token-round", "svg") : Layer2Branding.current().logoFile }
 }
 
 /// The chain's logo and, when `canSwitch`, a drop-down beside it to switch between Tezos and
-/// Etherlink. Used at the top left of the Receive and Send sheets. The GTK counterpart of
+/// Etherlink. Used at the top left of the Receive and Send sheets; Receive names the second side
+/// "EVM", since what it shows there is the account's address on Etherlink's EVM side. The GTK counterpart of
 /// upstream's `Views/ChainSidePicker.swift`.
 @MainActor
 final class ChainSidePicker {
@@ -22,7 +23,7 @@ final class ChainSidePicker {
     private let layer2Name: String
     private let onChange: @MainActor (ChainSide) -> Void
 
-    init(side: ChainSide = .tezos, canSwitch: Bool, layer2Name: String = ChainSide.etherlink.rawValue,
+    init(side: ChainSide = .tezos, canSwitch: Bool, layer2Name: String = Brand.l2,
          onChange: @escaping @MainActor (ChainSide) -> Void) {
         self.side = side
         self.layer2Name = layer2Name

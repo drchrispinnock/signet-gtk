@@ -14,7 +14,7 @@ enum SignetApp {
     static let gettingStartedURL = URL(string: "https://leanpub.com/read/tezossignet/ID110-starting_1_Getting")!
     /// Signet's website, opened from the burger menu.
     static let websiteURL = URL(string: "https://signetwallet.org")!
-    static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
+    nonisolated static var isTestHost: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
 
     /// The app's model, as upstream builds it. Under a test host it is built on in-memory stores
     /// only (S24).
@@ -77,6 +77,14 @@ enum SignetApp {
         // set. The app opens signet:// links (`open` below); a link given to a second launch is
         // passed to the running one, as on the Mac.
         let app = Widget(adw_application_new("org.tezos.signet", GApplicationFlags(rawValue: 1 << 2))!)
+        // Registered with the session manager, so GTK reports the screensaver and lock
+        // (`screensaver-active`), when remembered passwords are forgotten. G_TYPE_BOOLEAN by value:
+        // the macro is not imported.
+        var registers = GValue()
+        g_value_init(&registers, GType(5 << 2))
+        g_value_set_boolean(&registers, 1)
+        g_object_set_property(app.as(), "register-session", &registers)
+        g_value_unset(&registers)
         Signals.connect(app, "startup") {
             // WebKit takes the thread it is first set up on for the main thread, and the Buy
             // sheet's web view needs that to be GTK's. The bridge, made after startup, uses
@@ -109,6 +117,26 @@ enum SignetApp {
         for url in urls { model?.handleIncomingURL(url) }
     }
 
+    /// Remembered passwords go when the computer sleeps, its screen locks or the screensaver
+    /// starts, as they do on the Mac when it sleeps or locks: logind's `PrepareForSleep` on the
+    /// system bus, and GTK's `screensaver-active` (which needs the app registered with the
+    /// session manager).
+    private static func forgetPasswordsOnSleepOrLock(app: Widget, model: WalletViewModel) {
+        Signals.connect(app, "notify::screensaver-active") { [model] in
+            var active = GValue()
+            g_value_init(&active, GType(5 << 2))   // G_TYPE_BOOLEAN
+            g_object_get_property(app.as(), "screensaver-active", &active)
+            if g_value_get_boolean(&active) != 0 { model.forgetRememberedPassphrases() }
+            g_value_unset(&active)
+        }
+        guard let bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, nil, nil) else { return }
+        let onSignal: GDBusSignalCallback = { _, _, _, _, _, _, _ in
+            MainActor.assumeIsolated { SignetApp.current?.model.forgetRememberedPassphrases() }
+        }
+        g_dbus_connection_signal_subscribe(bus, "org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep",
+                                           "/org/freedesktop/login1", nil, GDBusSignalFlags(rawValue: 0), onSignal, nil, nil)
+    }
+
     private static func activate(_ app: Widget) {
         if let window {
             gtk_window_present(window.as())
@@ -123,5 +151,8 @@ enum SignetApp {
         cameraWatcher = CameraWatcher { [model] hasCamera in model.hasCamera = hasCamera }
         gtk_window_present(window.as())
         Disclaimer.presentIfWanted(over: window, app: app)
+        // Tezos Domains expiry reminders: at launch, then once a day.
+        DomainReminderSchedule.start(model: model)
+        forgetPasswordsOnSleepOrLock(app: app, model: model)
     }
 }

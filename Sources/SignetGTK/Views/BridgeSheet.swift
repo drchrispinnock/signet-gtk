@@ -2,10 +2,10 @@ import CAdwaita
 import Foundation
 
 /// Moves tez between Tezos layer 1 and the selected account on Etherlink (0.9.1): Tezos on the
-/// left, Etherlink on the right, the arrow between them sets the direction. Only layer 1 →
-/// Etherlink can be carried out today: Etherlink does not yet offer withdrawals from
-/// Michelson-interface (tz) accounts, so that direction, with its Fast / Slow choice, is shown
-/// but cannot be confirmed. The GTK counterpart of upstream's `Views/BridgeSheet.swift`.
+/// left, Etherlink on the right, the arrow between them sets the direction. Etherlink → Tezos
+/// (slow) pays out to the same account on Tezos after the rollup's challenge window. Fast
+/// withdrawals are shown but not offered yet. The GTK counterpart of upstream's
+/// `Views/BridgeSheet.swift`.
 @MainActor
 final class BridgeSheet: Sheet {
     enum Direction: Hashable { case toEtherlink, toTezos }
@@ -13,7 +13,7 @@ final class BridgeSheet: Sheet {
     enum Step: Hashable { case compose, working, done(hash: String, level: Int) }
 
     private var direction: Direction = .toEtherlink
-    private var speed: Speed = .fast
+    private var speed: Speed = .slow
     /// The estimate and the context it was made in (S31); refreshed whenever that context moves.
     private var estimate: WalletViewModel.BridgeEstimate?
     private var estimateError: String?
@@ -31,25 +31,25 @@ final class BridgeSheet: Sheet {
     private let passphraseGroup: Widget
     private let result = UI.vbox(spacing: 10)
     private let amountField: Widget
-    private let passphraseField: Widget
+    private let password: PasswordField
     private let speedPicker: Widget
     private var bridgeButton: Widget!
 
     init(model: WalletViewModel) {
         amountField = Form.entry("Amount (tz)", monospaced: true)
-        passphraseField = Form.password("Password for “\(model.selectedWallet?.alias ?? "")”")
-        speedPicker = Form.picker("Speed", options: Speed.allCases.map(\.rawValue))
+        password = PasswordField(model: model, wallet: model.selectedWallet)
+        speedPicker = Form.picker("Speed", options: Speed.allCases.map(\.rawValue), selected: Speed.allCases.firstIndex(of: .slow) ?? 0)
         header = Sheet.accountTitle("Bridge", wallet: model.selectedWallet).root
         speedGroup = Form.group([speedPicker])
-        passphraseGroup = Form.group([passphraseField])
+        passphraseGroup = Form.group(password.rows)
         super.init(model: model, width: 560)
+        password.onChange = { [unowned self] in self.updateButtons() }
         body.setChildren([Form.group([amountField]), details, speedGroup, passphraseGroup])
         content.setChildren([header, sides, body, result])
         Signals.connect(amountField, "changed") { [unowned self] in self.changed() }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateButtons() }
         Signals.connect(speedPicker, "notify::selected") { [unowned self] in
             self.speed = Form.selected(self.speedPicker) == 1 ? .slow : .fast
-            self.render()
+            self.changed()
         }
         trackers.append(Tracker { [unowned self] in
             // The balances, the context and whether bridging is possible follow the model.
@@ -61,30 +61,35 @@ final class BridgeSheet: Sheet {
 
     private var wallet: Wallet? { submitted?.context.wallet ?? model.selectedWallet }
     private var network: Network { submitted?.context.network ?? model.network }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
     private var spendable: Decimal? { model.tezBalance?.spendable }
     private var etherlink: AssetBalance? { model.assets.first { $0.kind == .etherlink } }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
     private var amount: Decimal? {
         if let submitted { return submitted.amount }
         let text = Form.text(amountField).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
         guard let value = Decimal(string: text, locale: Locale(identifier: "en_US_POSIX")), value > 0, value.isFinite else { return nil }
         return value
     }
+    /// What the tez leave from: Tezos for a deposit, Etherlink for a withdrawal.
+    private var sourceSpendable: Decimal? { direction == .toEtherlink ? spendable : model.etherlinkSpendable }
     private var exceedsBalance: Bool {
-        guard let amount, let spendable else { return false }
-        return amount + (estimate?.estimate.fee ?? 0) > spendable
+        guard let amount, let sourceSpendable else { return false }
+        return amount + (estimate?.estimate.fee ?? 0) > sourceSpendable
+    }
+    private var directionAvailable: Bool {
+        direction == .toEtherlink || (speed == .slow && model.canWithdrawFromEtherlink)
     }
     private var canConfirm: Bool {
-        direction == .toEtherlink && amount != nil && estimate?.amount == amount
+        directionAvailable && amount != nil && estimate?.amount == amount && estimate?.isWithdrawal == (direction == .toTezos)
             && estimate?.context == model.bridgeContext && !exceedsBalance && model.canBridge
             && !(needsPassphrase && passphrase.isEmpty) && step == .compose
     }
 
     /// Something the estimate depends on may have moved: ask again if it did, and redraw.
     private func changed() {
-        let key = EstimateKey(direction: direction, amount: Form.text(amountField), context: model.bridgeContext, step: step)
+        let key = EstimateKey(direction: direction, speed: speed, amount: Form.text(amountField), context: model.bridgeContext, step: step)
         if key != estimateKey {
             estimateKey = key
             estimateTask?.cancel()
@@ -110,7 +115,8 @@ final class BridgeSheet: Sheet {
         case .working:
             sides.isVisible = true
             renderSides()
-            setBusy(signsOnLedger ? "Confirm the deposit on your Ledger…" : "Bridging \(AssetBalance.format(amount ?? 0, symbol: "tz")) to Etherlink…")
+            setBusy(signsOnLedger ? (direction == .toEtherlink ? "Confirm the deposit on your Ledger…" : "Confirm the withdrawal on your Ledger…")
+                                  : "Bridging \(AssetBalance.format(amount ?? 0, symbol: "tz")) to \(direction == .toEtherlink ? network.l2Name : "Tezos")…")
             body.isVisible = false
         case .done(let hash, let level):
             sides.isVisible = false
@@ -123,12 +129,12 @@ final class BridgeSheet: Sheet {
     /// Tezos on the left, Etherlink on the right; the arrow between them is the direction.
     private func renderSides() {
         let arrow = UI.iconButton(direction == .toEtherlink ? "go-next-symbolic" : "go-previous-symbolic",
-                                  tooltip: direction == .toEtherlink ? "Tezos to Etherlink. Click to reverse." : "Etherlink to Tezos. Click to reverse.") { [unowned self] in
+                                  tooltip: direction == .toEtherlink ? "Tezos to \(Brand.l2). Click to reverse." : "\(Brand.l2) to Tezos. Click to reverse.") { [unowned self] in
             self.direction = self.direction == .toEtherlink ? .toTezos : .toEtherlink
             self.estimate = nil
             self.changed()
         }
-        arrow.classes("circular", "bridge-arrow").align(v: GTK_ALIGN_CENTER).accessibleLabel(direction == .toEtherlink ? "Direction: Tezos to Etherlink" : "Direction: Etherlink to Tezos")
+        arrow.classes("circular", "bridge-arrow").align(v: GTK_ALIGN_CENTER).accessibleLabel(direction == .toEtherlink ? "Direction: Tezos to \(Brand.l2)" : "Direction: \(Brand.l2) to Tezos")
         arrow.isSensitive = step == .compose
         sides.setChildren([
             side(.tezos, balance: spendable.map { AssetBalance.format($0, symbol: "tz") }, note: "spendable"),
@@ -153,43 +159,56 @@ final class BridgeSheet: Sheet {
         if exceedsBalance { rows.append(Form.note("More than the spendable balance, fee included.", style: "warning-text").row) }
         switch direction {
         case .toEtherlink:
-            if let estimate = estimate?.estimate {
-                rows.append(Form.labeled("Fee", value: AssetBalance.format(estimate.fee, symbol: "tz")).row)
-                rows.append(Form.labeled("Total", value: AssetBalance.format(estimate.total, symbol: "tz")).row)
-            } else if amount != nil {
-                if let estimateError {
-                    let label = UI.label(estimateError, classes: ["warning-text"], wrap: true, xalign: 1)
-                    gtk_label_set_max_width_chars(label.opaque, 40)
-                    rows.append(Form.labeled("Fee", content: label))
-                } else {
-                    let spinner = Widget(gtk_spinner_new()!)
-                    gtk_spinner_start(spinner.opaque)
-                    rows.append(Form.labeled("Fee", content: spinner))
-                }
-            }
-            rows.append(Form.note("The tez leave this account on Tezos through Etherlink's bridge and arrive on Etherlink under the same address within about a minute.").row)
+            rows += feeRows()
+            rows.append(Form.note("The tez leave this account on Tezos through \(network.l2Name)'s bridge and arrive on \(network.l2Name) under the same address within about a minute.").row)
         case .toTezos:
-            rows.append(Form.note(speed == .fast
-                ? "Fast: a liquidity provider pays out on Tezos within about a minute for a small fee."
-                : "Slow: the tez arrive on Tezos after the rollup's 15-day withdrawal period, with no fee.").row)
-            rows.append(Form.note("Etherlink does not yet offer withdrawals from accounts on its Michelson interface (tz addresses). This direction will work once it does.",
-                                  icon: "alarm-symbolic", style: "warning-text").row)
+            switch speed {
+            case .fast:
+                rows.append(Form.note("Fast: a liquidity provider pays out on Tezos within about a minute for a small fee.").row)
+                rows.append(Form.note("Fast withdrawals from tz accounts are not offered yet. Choose Slow.",
+                                      icon: "alarm-symbolic", style: "warning-text").row)
+            case .slow:
+                rows += feeRows()
+                rows.append(Form.note("Slow: the tez leave this account on \(network.l2Name) now and arrive on Tezos under the same address once the rollup's commitment is final, about two weeks from now.").row)
+            }
         }
         if !model.canBridge {
             rows.append(Form.note("Bridging needs Layer 2 on for this network and a tz1, tz2 or tz3 account Signet can sign for.", style: "warning-text").row)
         }
         Form.setRows(details, rows)
         speedGroup.isVisible = direction == .toTezos
-        passphraseGroup.isVisible = direction == .toEtherlink && needsPassphrase
+        passphraseGroup.isVisible = directionAvailable && wallet?.keyKind == .encrypted
+    }
+
+    /// The estimate's fee and total, or why there is none yet.
+    private func feeRows() -> [Widget] {
+        if let estimate = estimate?.estimate {
+            return [Form.labeled("Fee", value: AssetBalance.format(estimate.fee, symbol: "tz")).row,
+                    Form.labeled("Total", value: AssetBalance.format(estimate.total, symbol: "tz")).row]
+        }
+        guard amount != nil else { return [] }
+        if let estimateError {
+            let label = UI.label(estimateError, classes: ["warning-text"], wrap: true, xalign: 1)
+            gtk_label_set_max_width_chars(label.opaque, 40)
+            return [Form.labeled("Fee", content: label)]
+        }
+        let spinner = Widget(gtk_spinner_new()!)
+        gtk_spinner_start(spinner.opaque)
+        return [Form.labeled("Fee", content: spinner)]
     }
 
     private func doneView(hash: String, level: Int) -> [Widget] {
-        [
+        let withdrawal = submitted?.isWithdrawal ?? (direction == .toTezos)
+        let explorerNetwork = withdrawal ? (network.layer2 ?? network) : network
+        let amount = AssetBalance.format(amount ?? 0, symbol: "tz")
+        return [
             UI.hbox(spacing: 8, [UI.image(icon: "object-select-symbolic").classes("success-icon"),
-                                 UI.label("Sent \(AssetBalance.format(amount ?? 0, symbol: "tz")) to the bridge", classes: ["success-icon", "heading"])]),
-            UI.label("Included in block \(level.formatted()). Etherlink credits \(wallet?.alias ?? "the account") within about a minute; the Etherlink balance updates on the next refresh.",
+                                 UI.label(withdrawal ? "Withdrew \(amount) from \(network.l2Name)" : "Sent \(amount) to the bridge", classes: ["success-icon", "heading"])]),
+            UI.label(withdrawal
+                     ? "Included in \(network.l2Name) block \(level.formatted()). The tez arrive in \(wallet?.alias ?? "the account") on Tezos once the rollup's commitment is final, about two weeks from now."
+                     : "Included in block \(level.formatted()). \(network.l2Name) credits \(wallet?.alias ?? "the account") within about a minute; the \(network.l2Name) balance updates on the next refresh.",
                      classes: ["dim-label"], wrap: true),
-            OperationLink.make(hash, network: network),
+            OperationLink.make(hash, network: explorerNetwork),
         ]
     }
 
@@ -218,18 +237,19 @@ final class BridgeSheet: Sheet {
     /// or wallet directory drops the old estimate and asks again (S31).
     private struct EstimateKey: Hashable {
         let direction: Direction
+        let speed: Speed
         let amount: String
         let context: WalletViewModel.BridgeContext?
         let step: Step
     }
 
     private func refreshEstimate() async {
-        guard step == .compose, direction == .toEtherlink, let amount, model.canBridge else { return }
+        guard step == .compose, directionAvailable, let amount, model.canBridge else { return }
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
         render()
         do {
-            let result = try await model.estimateBridgeDeposit(amount: amount)
+            let result = direction == .toEtherlink ? try await model.estimateBridgeDeposit(amount: amount) : try await model.estimateBridgeWithdrawal(amount: amount)
             if !Task.isCancelled { estimate = result }
         } catch {
             if !Task.isCancelled { estimateError = error.localizedDescription }
@@ -238,14 +258,17 @@ final class BridgeSheet: Sheet {
     }
 
     private func bridge() async {
-        guard let amount, let approved = estimate, direction == .toEtherlink else { return }
+        guard let amount, let approved = estimate, directionAvailable else { return }
         setError(nil)
         submitted = approved
         step = .working
         render()
         do {
-            let (hash, level) = try await model.bridgeToEtherlink(amount: amount, approved: approved, passphrase: needsPassphrase ? passphrase : nil)
-            Form.clear(passphraseField)
+            let passphrase = needsPassphrase ? passphrase : nil
+            let (hash, level) = approved.isWithdrawal
+                ? try await model.bridgeToTezos(amount: amount, approved: approved, passphrase: passphrase)
+                : try await model.bridgeToEtherlink(amount: amount, approved: approved, passphrase: passphrase)
+            password.clear()
             step = .done(hash: hash, level: level)
         } catch {
             setError(error.localizedDescription)
@@ -257,6 +280,6 @@ final class BridgeSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }

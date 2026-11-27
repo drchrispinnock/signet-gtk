@@ -2,8 +2,8 @@ import CAdwaita
 import Foundation
 
 /// Shows the selected wallet's address as a QR code and text so someone can send tez to it.
-/// **The Etherlink side described below is switched off** (`EtherlinkAlias.isOffered`): the
-/// alias derivation changes in Etherlink 8.0, so the sheet shows the Tezos address only.
+/// The Etherlink side uses Etherlink 8.0's alias (`EtherlinkAlias`); a network still on the old
+/// kernel shows a note instead of an address (`EtherlinkAliasStatus.awaitingUpgrade`).
 /// With Layer 2 on, the logo at the top left has a drop-down beside it (`ChainSidePicker`) that
 /// switches to the account's address on Etherlink's EVM side (`EtherlinkAlias`). That address
 /// is only shown once it exists on chain (`EtherlinkAliasStatus.linked`): until the account has
@@ -24,6 +24,8 @@ final class ReceiveSheet: Sheet {
         /// estimated or sent until some are bridged across; the node's refusal is not shown.
         case unlinked(fee: Decimal?, problem: String?, unfunded: Bool = false)
         case linking
+        /// The network still runs a kernel older than Etherlink 8.0, whose alias is not the account's for long.
+        case awaitingUpgrade
         case failed(String)
     }
 
@@ -34,22 +36,22 @@ final class ReceiveSheet: Sheet {
     private let body = UI.vbox(spacing: 16)
     private let copyButton: Widget
     private let copyLabel = UI.label("Copy address")
-    private let passphraseField: Widget
+    private var password: PasswordField!
     private var linkButton: Widget?
     /// Bumped on every side change, so a check that finishes late is dropped (`.task(id: side)`).
     private var generation = 0
 
-    private var needsPassphrase: Bool { wallet.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
 
     init(model: WalletViewModel, wallet: Wallet, domains: [String], showsEtherlink: Bool) {
         self.wallet = wallet
         self.domains = domains
         self.showsEtherlink = showsEtherlink
         copyButton = UI.button(content: UI.hbox(spacing: 6, [UI.image(icon: "edit-copy-symbolic"), copyLabel]), classes: ["suggested-action"]) {}
-        passphraseField = PasswordEntry.make(placeholder: "Password for \(wallet.alias)", onChange: { _ in })
         super.init(model: model, width: 420)
+        password = PasswordField(model: model, wallet: wallet, onChange: { [unowned self] in self.updateLinkButton() })
 
-        let picker = ChainSidePicker(canSwitch: showsEtherlink) { [unowned self] in self.switchSide(to: $0) }
+        let picker = ChainSidePicker(canSwitch: showsEtherlink, layer2Name: "EVM") { [unowned self] in self.switchSide(to: $0) }
         // `ZStack { title; HStack { picker; Spacer() } }`: the title centred over the whole width.
         let title = UI.label("Receive", classes: ["title-2"], xalign: 0.5)
         let header = Widget(gtk_overlay_new()!)
@@ -63,7 +65,6 @@ final class ReceiveSheet: Sheet {
             UI.copyToClipboard(address, from: self.copyButton)
             UI.setText(self.copyLabel, "Copied")
         }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateLinkButton() }
         let done = button("Done", isDefault: true) { [unowned self] in self.dismiss() }
         setButtons([done])
         status.setChildren([copyButton])
@@ -98,7 +99,7 @@ final class ReceiveSheet: Sheet {
         if side == .tezos {
             nameRows += domains.map { UI.label($0, classes: ["dim-label"], xalign: 0.5) }
         } else {
-            nameRows.append(UI.label("on Etherlink", classes: ["dim-label"], xalign: 0.5))
+            nameRows.append(UI.label("on \(Brand.l2)", classes: ["dim-label"], xalign: 0.5))
         }
         names.setChildren(nameRows)
         if let address {
@@ -148,33 +149,29 @@ final class ReceiveSheet: Sheet {
         linkButton = nil
         switch alias {
         case .checking:
-            rows = [spinner(), paragraph("Checking whether this account is known on Etherlink…")]
+            rows = [spinner(), paragraph("Checking whether this account is known on \(Brand.l2)…")]
         case .linking:
-            rows = [spinner(), paragraph("Linking to Etherlink…")]
+            rows = [spinner(), paragraph("Linking to \(Brand.l2)…")]
             if wallet.keyKind == .ledger { rows.append(paragraph("Confirm the link on your Ledger…")) }
+        case .awaitingUpgrade:
+            rows = [paragraph("This account's address on \(Brand.l2)'s EVM side is not available until this network upgrades to \(Brand.l2) 8.0, which changes how that address is made. Until then, receive on \(Brand.l2) with the account's Tezos address."),
+                    UI.button("Check again") { [unowned self] in Task { await self.checkAlias() } }.align(h: GTK_ALIGN_CENTER)]
         case .failed(let message):
             rows = [paragraph(message, style: "error-text"),
                     UI.button("Try again") { [unowned self] in Task { await self.checkAlias() } }.align(h: GTK_ALIGN_CENTER)]
         case .unlinked(let fee, let problem, let unfunded):
-            rows.append(paragraph("This account has no address on Etherlink's EVM side yet. Etherlink creates one the first time the account calls across from its Tezos side; tez sent there before that would be stuck at an address nobody controls."))
+            rows.append(paragraph("This account has no address on \(Brand.l2)'s EVM side yet. \(Brand.l2) creates one the first time the account calls across from its Tezos side; tez sent there before that would be stuck at an address nobody controls."))
             if unfunded {
-                rows.append(paragraph("Linking sends a small no-op call from this account on Etherlink, paid there, and this account holds no tez on Etherlink yet. Use Bridge… in the menu to move a little across, then come back here."))
+                rows.append(paragraph("Linking sends a small no-op call from this account on \(Brand.l2), paid there, and this account holds no tez on \(Brand.l2) yet. Use Bridge… in the menu to move a little across, then come back here."))
                 rows.append(UI.button("Check again") { [unowned self] in Task { await self.checkAlias() } }.align(h: GTK_ALIGN_CENTER))
             } else if wallet.keyKind.canSign {
-                rows.append(paragraph("Linking sends a small no-op call from this account on Etherlink. It needs a little tez there to pay the fee (use Bridge… first)."))
-                if needsPassphrase {
-                    // Kept across renders, so it is taken out of the box it was in first.
-                    if let parent = gtk_widget_get_parent(passphraseField.pointer) {
-                        g_object_ref(passphraseField.raw)
-                        gtk_box_remove(UnsafeMutableRawPointer(parent).assumingMemoryBound(to: GtkBox.self), passphraseField.pointer)
-                        rows.append(passphraseField.size(width: 260).align(h: GTK_ALIGN_CENTER))
-                        g_object_unref(passphraseField.raw)
-                    } else {
-                        rows.append(passphraseField.size(width: 260).align(h: GTK_ALIGN_CENTER))
-                    }
+                rows.append(paragraph("Linking sends a small no-op call from this account on \(Brand.l2). It needs a little tez there to pay the fee (use Bridge… first)."))
+                if wallet.keyKind == .encrypted {
+                    // The rows are kept across renders; `Form.group` takes them out of the old group.
+                    rows.append(Form.group(password.rows).size(width: 320).align(h: GTK_ALIGN_CENTER))
                 }
                 if let problem { rows.append(paragraph(problem, style: "warning-text")) }
-                let link = UI.button(fee.map { "Link to Etherlink (fee \(AssetBalance.format($0, symbol: "tz")))" } ?? "Link to Etherlink",
+                let link = UI.button(fee.map { "Link to \(Brand.l2) (fee \(AssetBalance.format($0, symbol: "tz")))" } ?? "Link to \(Brand.l2)",
                                      classes: ["suggested-action"]) { [unowned self] in Task { await self.link() } }
                 linkButton = link
                 linkFee = fee
@@ -192,7 +189,7 @@ final class ReceiveSheet: Sheet {
     private var linkFee: Decimal?
 
     private func updateLinkButton() {
-        linkButton?.isSensitive = linkFee != nil && !(needsPassphrase && PasswordEntry.text(passphraseField).isEmpty)
+        linkButton?.isSensitive = linkFee != nil && !(needsPassphrase && password.text.isEmpty)
     }
 
     private var note: String {
@@ -200,7 +197,7 @@ final class ReceiveSheet: Sheet {
         case .tezos:
             "Only send tez and Tezos tokens to this address\(domains.isEmpty ? "." : ", or to \(domains[0]).")"
         case .etherlink:
-            "This account's address on Etherlink's EVM side. Tez sent to it on Etherlink are forwarded to this account; its own address on Etherlink's Michelson side is the Tezos one."
+            "This account's address on \(Brand.l2)'s EVM side. Tez sent to it on \(Brand.l2) are forwarded to this account; its own address on \(Brand.l2)'s Michelson side is the Tezos one."
         }
     }
 
@@ -213,6 +210,7 @@ final class ReceiveSheet: Sheet {
         do {
             guard let status = try await model.etherlinkAliasStatus() else { set(.failed("Layer 2 is off for this network.")); return }
             if case .linked(let evm) = status { set(.linked(evm)); return }
+            if status == .awaitingUpgrade { set(.awaitingUpgrade); return }
             guard wallet.keyKind.canSign else { set(.unlinked(fee: nil, problem: nil)); return }
             // A fresh account has nothing on Etherlink to pay the link with: say so instead of
             // asking the node, whose refusal (an empty implicit contract) would read as a fault.
@@ -235,8 +233,8 @@ final class ReceiveSheet: Sheet {
         let fee = estimate?.fee
         alias = .linking
         do {
-            _ = try await model.linkToEtherlink(limits: estimate?.limits, passphrase: needsPassphrase ? PasswordEntry.text(passphraseField) : nil)
-            gtk_editable_set_text(passphraseField.opaque, "")
+            _ = try await model.linkToEtherlink(limits: estimate?.limits, passphrase: needsPassphrase ? password.text : nil)
+            password.clear()
             await checkAlias()
         } catch ChainError.cannotPayFee {
             alias = .unlinked(fee: nil, problem: nil, unfunded: true)
@@ -245,5 +243,5 @@ final class ReceiveSheet: Sheet {
         }
     }
 
-    override func closed() { gtk_editable_set_text(passphraseField.opaque, "") }
+    override func closed() { password.clear() }
 }

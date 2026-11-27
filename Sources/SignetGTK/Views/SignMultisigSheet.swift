@@ -36,7 +36,7 @@ final class SignMultisigSheet: Sheet {
     private var undelegateNote: Widget!
     private var signerPicker: Widget!
     private var shownSigners: [Wallet] = []
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var signButton: Widget!
 
     init(model: WalletViewModel) {
@@ -91,11 +91,11 @@ final class SignMultisigSheet: Sheet {
             self.signer = self.shownSigners.indices.contains(index) ? self.shownSigners[index] : nil
             self.update()
         }
-        passphraseField = Form.password("Password", onChange: changed)
+        password = PasswordField(model: model, wallet: nil, onChange: changed)
 
         let form = Form.group([
             contractPicker, Form.labeled("State", content: stateBox), proposalPicker, Form.row(kindPicker),
-            amountField, destinationField, bakerField, knownBakerRow, undelegateNote, signerPicker, passphraseField,
+            amountField, destinationField, bakerField, knownBakerRow, undelegateNote, signerPicker] + password.rows + [
             Form.note("Nothing is sent yet. Your signature goes to whoever submits the transaction, together with the other signers' signatures.").row,
         ])
         content.setChildren([Sheet.title("Sign multisig transaction"), form])
@@ -119,7 +119,7 @@ final class SignMultisigSheet: Sheet {
     private var destinationAddress: Address { Address(Form.text(destinationField).trimmingCharacters(in: .whitespacesAndNewlines)) }
     private var bakerAddress: Address { Address(Form.text(bakerField).trimmingCharacters(in: .whitespacesAndNewlines)) }
     private var signers: [Wallet] { info?.signers(among: model.wallets) ?? [] }
-    private var needsPassphrase: Bool { signer?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: signer) }
     private var signsOnLedger: Bool { signer?.keyKind == .ledger }
     private var pending: [MultisigProposal] { model.currentMultisigProposals.filter { $0.contractAddress == contract?.address.value } }
     /// What the form describes, when it is complete.
@@ -136,7 +136,7 @@ final class SignMultisigSheet: Sheet {
         }
     }
     private var canSign: Bool {
-        contract != nil && info?.isGenericMultisig == true && signer != nil && !isWorking && !(needsPassphrase && Form.text(passphraseField).isEmpty)
+        contract != nil && info?.isGenericMultisig == true && signer != nil && !isWorking && !(needsPassphrase && password.text.isEmpty)
             && (existing != nil || action != nil)
     }
 
@@ -205,8 +205,7 @@ final class SignMultisigSheet: Sheet {
             Form.setOptions(signerPicker, available.isEmpty ? ["None of your accounts is a signer"] : available.map { "\($0.alias)  \($0.address.shortened())" },
                             selected: signer.flatMap { available.firstIndex(of: $0) } ?? 0)
         }
-        passphraseField.isVisible = needsPassphrase
-        if let signer { adw_preferences_row_set_title(passphraseField.as(), "Password for “\(signer.alias)”") }
+        if password.wallet != signer { password.wallet = signer }
 
         setBusy(isWorking ? (signsOnLedger ? "Sign on your Ledger…" : "Signing…") : nil)
         canClose = !isWorking
@@ -246,8 +245,8 @@ final class SignMultisigSheet: Sheet {
                 guard let action else { return }
                 proposal = try await model.proposeMultisig(action, from: contract)
             }
-            let signature = try await model.signMultisigProposal(proposal, with: signer, passphrase: needsPassphrase ? Form.text(passphraseField) : nil)
-            Form.clear(passphraseField)
+            let signature = try await model.signMultisigProposal(proposal, with: signer, passphrase: needsPassphrase ? password.text : nil)
+            password.clear()
             let updated = model.multisigProposals.first { $0.id == proposal.id } ?? proposal
             showDone(updated, signature)
         } catch {
@@ -279,7 +278,7 @@ final class SignMultisigSheet: Sheet {
     /// `onDismiss: { model.signMultisigPreset = nil }`.
     override func closed() {
         loadTask?.cancel()
-        passphraseField.map(Form.clear)
+        password?.clear()
         model.signMultisigPreset = nil
     }
 }
