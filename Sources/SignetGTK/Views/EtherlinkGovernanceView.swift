@@ -133,7 +133,7 @@ final class EtherlinkGovernanceView {
         }
         var sections = [periodSection(state)]
         if !state.canVote {
-            sections.append(section(nil, [Form.note("This account has no voting power on Etherlink: it is neither a baker in this period's listings nor a voting key that a baker has delegated to and that has claimed its rights.",
+            sections.append(section(nil, [Form.note("This account has no voting power on \(Brand.l2): it is neither a baker in this period's listings nor a voting key that a baker has delegated to and that has claimed its rights.",
                                                     icon: "help-about-symbolic").row]))
         } else if state.periodKind == .proposal {
             sections.append(proposalSection(state))

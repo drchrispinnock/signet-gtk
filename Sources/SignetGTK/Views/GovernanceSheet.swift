@@ -12,6 +12,8 @@ final class GovernanceSheet: Sheet {
     enum Tab: String, CaseIterable {
         case tezos = "Tezos"
         case etherlink = "Etherlink"
+        /// The tab's label: the Layer 2 follows the branding setting.
+        var title: String { self == .tezos ? rawValue : Brand.l2 }
     }
 
     enum Mode: Equatable { case overview, confirm(GovernanceOperation), working(GovernanceOperation), done(hash: String, level: Int, GovernanceOperation) }
@@ -35,7 +37,7 @@ final class GovernanceSheet: Sheet {
         super.init(model: model, width: 560)
         for candidate in Tab.allCases {
             let toggle = adw_toggle_new()!
-            adw_toggle_set_label(toggle, candidate.rawValue)
+            adw_toggle_set_label(toggle, candidate.title)
             adw_toggle_set_name(toggle, candidate.rawValue)
             adw_toggle_group_add(tabs.opaque, toggle)
         }
@@ -129,7 +131,7 @@ final class GovernanceSheet: Sheet {
 
     private func overview() -> [Widget] {
         if model.delegateInfo?.isBaker != true {
-            return [note("Tezos protocol voting is for bakers. This account is not a baker, so it can only vote on Etherlink.", icon: "help-about-symbolic")]
+            return [note("Tezos protocol voting is for bakers. This account is not a baker, so it can only vote on \(Brand.l2).", icon: "help-about-symbolic")]
         }
         if let loadError { return [note(loadError, icon: "dialog-warning-symbolic", style: "warning-text")] }
         guard let info else {

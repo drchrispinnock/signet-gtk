@@ -95,8 +95,16 @@ final class LayerToggles {
 
     init(model: WalletViewModel) {
         self.model = model
-        for (layer, side) in [(1, ChainSide.tezos), (2, ChainSide.etherlink)] {
-            let logo = ChainSidePicker.logo(side, size: 16)
+        for layer in [1, 2] {
+            // The layer's mark (`LayerMarks`): a small logo, or L1 / L2.
+            let logo: Widget
+            switch Experimental.shared.marks {
+            case .logos:
+                let file = layer == 1 ? ChainSide.tezos.logo : Layer2Branding.current().miniLogoFile
+                logo = UI.resourceImage(file.name, file.ext, pixelSize: 16) ?? UI.label("L\(layer)", classes: ["caption-heading", "numeric"])
+            case .labels:
+                logo = UI.label("L\(layer)", classes: ["caption-heading", "numeric"])
+            }
             let button = Widget(gtk_toggle_button_new()!)
             gtk_button_set_child(button.as(), logo.pointer)
             button.classes("flat", "layer-toggle").align(v: GTK_ALIGN_CENTER)
@@ -127,13 +135,20 @@ final class LayerToggles {
     }
 }
 
-/// A small Etherlink logo beside a layer 2 row's figure or on its tile: the same mark as the
-/// dashboard's Etherlink balance row, so a list reads "on Etherlink".
+/// The mark beside a layer 2 row's figure or on its tile, so a list reads "on Etherlink": the
+/// Layer 2's small logo, or an L2 capsule, as Settings' "Layer marks" says (`LayerMarks`).
 @MainActor
 enum EtherlinkMark {
     static func make(size: Int32 = 14) -> Widget {
-        let mark = UI.resourceImage("etherlink-avatar", "svg", pixelSize: size) ?? UI.label("ETL", classes: ["caption"])
-        return mark.tooltip("On Etherlink")
+        let mark: Widget
+        switch Experimental.shared.marks {
+        case .logos:
+            let file = Layer2Branding.current().miniLogoFile
+            mark = UI.resourceImage(file.name, file.ext, pixelSize: size) ?? UI.label("L2", classes: ["caption"])
+        case .labels:
+            mark = UI.label("L2", classes: ["layer-mark", "numeric"], xalign: 0.5).align(v: GTK_ALIGN_CENTER)
+        }
+        return mark.tooltip("On \(Brand.l2)")
     }
 }
 
@@ -248,7 +263,7 @@ final class TransactionRowView {
             gtk_widget_add_css_class(circle, colour)
         }
         root.tooltip(helpText)
-        root.accessibleLabel("\(headline), \(subtitle), \(transaction.amount > 0 ? signedAmount : "")\(transaction.isLayer2 ? ", on Etherlink" : "")")
+        root.accessibleLabel("\(headline), \(subtitle), \(transaction.amount > 0 ? signedAmount : "")\(transaction.isLayer2 ? ", on \(Brand.l2)" : "")")
     }
 
     // MARK: Pieces
@@ -331,7 +346,7 @@ final class TransactionRowView {
 
     private var helpText: String {
         var lines = [transaction.hash, "Block \(transaction.level.formatted())", transaction.timestamp.formatted(date: .abbreviated, time: .shortened)]
-        if transaction.isLayer2 { lines.insert("On Etherlink", at: 0) }
+        if transaction.isLayer2 { lines.insert("On \(Brand.l2)", at: 0) }
         if let address = transaction.counterparty { lines.append(address.value) }
         if network?.explorerURL(operation: transaction.hash) != nil { lines.append("Click to view in the explorer") }
         return lines.joined(separator: "\n")
@@ -463,8 +478,8 @@ enum TokenRowView {
         amount.append(UI.label(token.formattedAmount, classes: ["numeric"], xalign: 1))
 
         let row = UI.hbox(spacing: 12, [logo, text, UI.hbox(spacing: 5, amount).align(v: GTK_ALIGN_CENTER)]).margins(top: 8, bottom: 8)
-        row.tooltip((token.isLayer2 ? "On Etherlink\n" : "") + (contract.map { "\(token.name)\n\($0)" } ?? token.name))
-        row.accessibleLabel("\(token.name) \(token.formattedAmount)\(token.isLayer2 ? ", on Etherlink" : "")")
+        row.tooltip((token.isLayer2 ? "On \(Brand.l2)\n" : "") + (contract.map { "\(token.name)\n\($0)" } ?? token.name))
+        row.accessibleLabel("\(token.name) \(token.formattedAmount)\(token.isLayer2 ? ", on \(Brand.l2)" : "")")
         if let contract {
             var items: [(String, @MainActor () -> Void)] = [("Copy contract address", { UI.copyToClipboard(contract, from: row) })]
             if let url = explorer?.explorerURL(contract: contract) {
@@ -591,7 +606,7 @@ enum NFTContextMenu {
         let reason: String? = if !sameLayer { "Choose NFTs on one chain at a time" }
             else if !transferable { targets.count == 1 ? "This token cannot be transferred" : "One of these tokens cannot be transferred" }
             else if targets.count > TokenTransferRequest.maxTokens { "At most \(TokenTransferRequest.maxTokens) NFTs at once" }
-            else if !model.canTransferTokens(on: layer) { layer == 2 ? "Signet cannot sign for this account on Etherlink" : "Signet cannot sign for this account" }
+            else if !model.canTransferTokens(on: layer) { layer == 2 ? "Signet cannot sign for this account on \(Brand.l2)" : "Signet cannot sign for this account" }
             else { nil }
         if let reason { entries.append(.note(reason)) }
         entries.append(.separator)
@@ -650,8 +665,8 @@ enum NFTTileView {
         gtk_label_set_ellipsize(name.opaque, PANGO_ELLIPSIZE_END)
         gtk_label_set_max_width_chars(name.opaque, 1)
         let tile = UI.vbox(spacing: 6, [frame, name]).size(width: size)
-        tile.tooltip((nft.isLayer2 ? "On Etherlink\n" : "") + "\(nft.name)\n\(nft.contract) #\(nft.tokenId)")
-        tile.accessibleLabel(nft.name + (nft.isMoving ? ", video or sound" : "") + (nft.isLayer2 ? ", on Etherlink" : ""))
+        tile.tooltip((nft.isLayer2 ? "On \(Brand.l2)\n" : "") + "\(nft.name)\n\(nft.contract) #\(nft.tokenId)")
+        tile.accessibleLabel(nft.name + (nft.isMoving ? ", video or sound" : "") + (nft.isLayer2 ? ", on \(Brand.l2)" : ""))
         return tile
     }
 

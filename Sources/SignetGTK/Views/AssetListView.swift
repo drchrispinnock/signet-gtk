@@ -1,8 +1,10 @@
 import CAdwaita
 import Foundation
 
-/// Key balances: tez first, Etherlink second, then any other tokens. The GTK counterpart of
-/// upstream's `Views/AssetListView.swift`.
+/// Key balances: tez first, Etherlink second, then any other tokens. With the experimental
+/// "Consolidated balances" on, tez, Etherlink and Shielded are one tez row that expands into
+/// its parts (`AssetBalance.consolidated`). The GTK counterpart of upstream's
+/// `Views/AssetListView.swift`.
 @MainActor
 final class AssetListView {
     let model: WalletViewModel
@@ -19,7 +21,7 @@ final class AssetListView {
     }
 
     private func update() {
-        let assets = model.assets
+        let assets = Experimental.shared.consolidates ? AssetBalance.consolidated(model.assets) : model.assets
         guard assets != shown else { return }
         shown = assets
         root.setChildren(assets.map { row(for: $0) })
@@ -46,7 +48,8 @@ final class AssetListView {
         let details = UI.vbox(spacing: 6, asset.details.map { detail in
             UI.hbox(spacing: 8, [
                 UI.label(detail.label, classes: ["dim-label"]).expand(h: true),
-                UI.label(AssetBalance.format(detail.amount, symbol: asset.symbol), classes: ["numeric"]),
+                detail.unavailable.map { UI.label("unavailable", classes: ["dim-label"]).tooltip($0) }
+                    ?? UI.label(AssetBalance.format(detail.amount, symbol: asset.symbol), classes: ["numeric"]),
             ])
         }).margins(start: 60, end: 24).classes("asset-details")
         let revealer = Widget(gtk_revealer_new()!)
@@ -81,7 +84,8 @@ final class AssetListView {
         case .tez:
             return UI.resourceImage("tezos-token-round", "svg", pixelSize: 44) ?? badge("XTZ")
         case .etherlink:
-            return UI.resourceImage("etherlink-avatar", "svg", pixelSize: 44) ?? badge("ETL")
+            let logo = Layer2Branding.current().logoFile
+            return UI.resourceImage(logo.name, logo.ext, pixelSize: 44) ?? badge("ETL")
         case .shielded:
             return UI.resourceImage("shield", "png", pixelSize: 44) ?? badge("ZK")
         case .token:

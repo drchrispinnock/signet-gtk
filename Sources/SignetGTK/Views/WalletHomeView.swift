@@ -40,6 +40,10 @@ final class WalletHomeView {
     private var trackers: [Tracker] = []
     /// Which kind of screen `content` holds, so it is rebuilt only when that changes.
     private var shownWallet: Wallet.ID?? = .none
+    /// The experimental settings the dashboard was drawn with: a change draws it again, as
+    /// upstream's `.id(branding)` does (layer marks and consolidated balances redraw their own
+    /// views there; here the dashboard is drawn again for those too).
+    private var shownExperimental: (branding: Layer2Branding, marks: LayerMarks, consolidates: Bool)?
     private var dashboard: DashboardView?
     private var welcome: NoWalletsView?
 
@@ -85,8 +89,14 @@ final class WalletHomeView {
     /// The account dashboard or, with no accounts, the welcome screen.
     private func updateContent() {
         let wallet = model.selectedWallet
-        guard shownWallet != .some(wallet?.id) else { return }
+        let experimental = Experimental.shared
+        let settings = (branding: experimental.branding, marks: experimental.marks, consolidates: experimental.consolidates)
+        let brandingChanged = shownExperimental.map { $0.branding != settings.branding } ?? false
+        guard shownWallet != .some(wallet?.id) || shownExperimental.map({ $0 != settings }) ?? true else { return }
         shownWallet = .some(wallet?.id)
+        shownExperimental = settings
+        // `.onChange(of: branding) { Task { await model.refresh() } }`: the rows' names follow.
+        if brandingChanged { Task { await model.refresh() } }
         if let wallet {
             let dashboard = DashboardView(model: model, wallet: wallet)
             self.dashboard = dashboard

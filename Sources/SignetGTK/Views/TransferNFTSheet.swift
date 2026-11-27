@@ -50,7 +50,7 @@ final class TransferNFTSheet: Sheet {
         password = PasswordField(model: model, wallet: model.selectedWallet)
         passphraseGroup = Form.group(password.rows)
         let what = operation.nfts.count == 1 ? "NFT" : "\(operation.nfts.count) NFTs"
-        let header = Sheet.accountTitle((operation.kind == .burn ? "Burn " : "Transfer ") + what + (operation.layer == 2 ? " on Etherlink" : ""),
+        let header = Sheet.accountTitle((operation.kind == .burn ? "Burn " : "Transfer ") + what + (operation.layer == 2 ? " on \(Brand.l2)" : ""),
                                         wallet: model.selectedWallet)
         heading = header.root
         super.init(model: model, width: 560)
@@ -239,7 +239,7 @@ final class TransferNFTSheet: Sheet {
             }
         }
         if !model.canTransferTokens(on: operation.layer) {
-            rows.append(Form.note(operation.layer == 2 ? "Transfers on Etherlink need Layer 2 on and a tz1, tz2 or tz3 account Signet can sign for." : "Signet cannot sign for this account.",
+            rows.append(Form.note(operation.layer == 2 ? "Transfers on \(Brand.l2) need Layer 2 on and a tz1, tz2 or tz3 account Signet can sign for." : "Signet cannot sign for this account.",
                                   style: "warning-text").row)
         }
         Form.setRows(details, rows)
