@@ -287,11 +287,25 @@ gathered with progress) and their signing panel, the Domains tab (`DomainListVie
 `model.activityTabs`) and "Activity" for "Recent transactions", the account tags on the address
 line (AirGap, Remote signer), Etherlink voting keys (the "Voting rights contract" field in
 Networks; Governance shows only the Etherlink tab to a voting key that is not a baker), and the
-Help menu's Getting Started and Signet Website as the burger menu's last section. Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
+Help menu's Getting Started and Signet Website as the burger menu's last section, and 0.9.20's
+remembered passwords (`Views/PasswordField.swift`: the password row of every signing sheet, or
+"Remembered until …" with Forget; Settings > Passwords), Tezos Domains expiry reminders
+(`Platform/DomainReminderAlert.swift`: `DomainReminderSchedule` checks at launch and daily,
+the alert is an `AdwAlertDialog` once no sheet is open, the dashboard's `ExpiringDomainsNotice`;
+Settings > Notifications), Settings' Experimental Features (`App/Experimental.swift` mirrors
+Layer 2 branding, layer marks and consolidated balances for the views; user-facing "Etherlink"
+is `Brand.l2`, the Tezos X logos are resources, and a change draws the dashboard again as
+upstream's `.id(branding)`), Etherlink 8.0 (Receive's EVM side offered again, "EVM" in its
+chain dropdown, Bridge withdrawals from Etherlink to Tezos), `TransferTokenSheet` and
+`TransferDomainSheet` (right-click Transfer… on the Assets and Domains tabs; their "To" field
+is `RecipientField`) and `MoveAssetsSheet` (burger menu under Bridge). Send, Staking (delegate), Faucet, Import, Create, the multisig sheets,
 the Bridge deposit, the Etherlink alias link, Send on Etherlink and a dApp on Shadownet's Layer 2
 (`tezosx-shadownet`: refused with Layer 2 off, then paired and an operation approved) have been
 run against Shadownet; NFT Transfer/Burn and Etherlink governance have only been looked at, not run with
-real tez (NFT Download and the Buy widget have been run). The shielded sheets have been run
+real tez (NFT Download and the Buy widget have been run). Of 0.9.20, Settings' new sections, the Tezos X branding and
+Move assets up to its review have been run on Mainnet with a watch-only and an empty account;
+token and domain transfers, Bridge withdrawals, Move assets itself and a password remembered
+while signing have not been run with real tez. The shielded sheets have been run
 against Shadownet's TzEL deployment as far as it goes without the operator's access token
 (settings, the token on file, a shielded address and the address book, the shield's rollup
 checks, pool and estimate, the unshield and transfer estimates); a shield, unshield or private
@@ -370,7 +384,18 @@ avoid too:
   header bar for its title and controls.
 - The app forces the Adwaita icon theme: libadwaita's look assumes its symbolic icons, and other
   desktops' themes (XFCE's) fall back to coloured ones. GTK icon names stand in for SF Symbols.
-- Wording that names the Mac elsewhere says "this computer" (Forget account, Remember key).
+- Wording that names the Mac elsewhere says "this computer" (Forget account, Remember key,
+  Settings > Passwords).
+- Remembered passwords are forgotten when the computer sleeps (logind's `PrepareForSleep` on
+  the system bus) or the screensaver or lock comes on (GTK's `screensaver-active`, for which
+  the app registers with the session manager), where the Mac watches sleep, screen sleep, the
+  session resigning and the screen lock.
+- Upstream's `DomainReminderService` shows its alert as an `NSAlert` sheet; off the Mac it
+  calls the port's `freeMainWindow` and `present` (an `AdwAlertDialog` on the window).
+- Move assets' To picker lists my accounts first and the address book after, marked
+  "(address book)", where upstream has two sections in the pop-up.
+- Upstream's layer marks and consolidated balances redraw their own views live; here any
+  experimental setting draws the dashboard again.
 - Settings is a sheet over the window rather than a window of its own, and has no Updates
   section (Signet is updated by whatever installed it, not Sparkle). "Show in Finder" is "Open
   Folder", which opens the folder in the file manager.
