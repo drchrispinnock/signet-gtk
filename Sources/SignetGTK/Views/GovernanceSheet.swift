@@ -22,7 +22,7 @@ final class GovernanceSheet: Sheet {
     private var selected: Set<String> = []
     private let wallet: Wallet?
     private let body = UI.vbox(spacing: 12)
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var newProposalField: Widget!
     private var upvoteButton: Widget?
     private var proposalProblem: Widget?
@@ -50,7 +50,7 @@ final class GovernanceSheet: Sheet {
             self.show(chosen)
         }
         content.setChildren([Sheet.accountTitle("Governance", wallet: wallet).root, tabs, body])
-        passphraseField = Form.password("Password for “\(wallet?.alias ?? "")”", onChange: { [unowned self] in self.updateButtons() })
+        password = PasswordField(model: model, wallet: wallet, onChange: { [unowned self] in self.updateButtons() })
         newProposalField = Form.entry("Or a new proposal hash (P…)", monospaced: true, onChange: { [unowned self] in self.updateUpvote() })
         show(tab)
         Task { await load() }
@@ -82,7 +82,7 @@ final class GovernanceSheet: Sheet {
         }
     }
 
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
 
     private var title: String {
@@ -251,7 +251,7 @@ final class GovernanceSheet: Sheet {
             rows.append(Form.labeled("Ballot", value: vote.title).row)
         }
         rows.append(Form.labeled("Fee", value: "None (voting operations are free)").row)
-        if needsPassphrase { rows.append(passphraseField); focus(passphraseField) }
+        if wallet?.keyKind == .encrypted { rows += password.rows; if needsPassphrase { focus(password.entry) } }
         if signsOnLedger { rows.append(Form.note("Your Ledger will show this operation for approval.").row) }
         return Form.group(rows)
     }
@@ -265,7 +265,7 @@ final class GovernanceSheet: Sheet {
             setButtons([button("Done", isDefault: true) { [unowned self] in self.dismiss() }])
         case .confirm(let op):
             let confirm = button("Confirm", role: .prominent, isDefault: true) { [unowned self] in Task { await self.perform(op) } }
-            confirm.isSensitive = !(needsPassphrase && Form.text(passphraseField).isEmpty)
+            confirm.isSensitive = !(needsPassphrase && password.text.isEmpty)
             setButtons([button("Back") { [unowned self] in self.setError(nil); self.mode = .overview }, confirm])
         case .working:
             setButtons([])
@@ -290,8 +290,8 @@ final class GovernanceSheet: Sheet {
         setError(nil)
         mode = .working(op)
         do {
-            let result = try await model.performGovernance(op, passphrase: needsPassphrase ? Form.text(passphraseField) : nil)
-            Form.clear(passphraseField)
+            let result = try await model.performGovernance(op, passphrase: needsPassphrase ? password.text : nil)
+            password.clear()
             selected = []
             Form.clear(newProposalField)
             mode = .done(hash: result.hash, level: result.level, op)
@@ -303,7 +303,7 @@ final class GovernanceSheet: Sheet {
     }
 
     override func closed() {
-        Form.clear(passphraseField)
+        password.clear()
         etherlink?.closed()
     }
 }

@@ -44,3 +44,36 @@ extension DomainReminderService {
         if opened, let url = alert.url { UI.open(url, from: window) }
     }
 }
+
+/// Upstream's `SignetApp.checkDomainReminders` and the `.task` that runs it: at launch, then
+/// once a day while Signet runs, the names the user's accounts own are looked up, those due
+/// soon are listed on the dashboard (`model.expiringDomains`) and any reminder now due goes up
+/// as an alert. Nothing is scheduled with the system, as on the Mac and Windows.
+@MainActor
+enum DomainReminderSchedule {
+    private static var daily: Task<Void, Never>?
+
+    static func start(model: WalletViewModel) {
+        guard !SignetApp.isTestHost, daily == nil else { return }
+        daily = Task {
+            while !Task.isCancelled {
+                await checkNow(model: model)
+                try? await Task.sleep(for: .seconds(24 * 3600))
+            }
+        }
+    }
+
+    /// Checks again now (the setting was changed).
+    static func check(model: WalletViewModel) {
+        Task { await checkNow(model: model) }
+    }
+
+    private static func checkNow(model: WalletViewModel) async {
+        let service = DomainReminderService.shared
+        guard DomainReminderSettings.isOn() else { model.expiringDomains = []; return }
+        guard let names = await model.ownedDomainNamesForReminders() else { return }
+        let now = Date()
+        model.expiringDomains = names.filter { DomainReminders.isDueSoon($0.expires, now: now) }.sorted { $0.expires < $1.expires }
+        await service.deliverDue(names, now: now)
+    }
+}

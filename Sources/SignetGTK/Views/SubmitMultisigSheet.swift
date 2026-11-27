@@ -19,7 +19,7 @@ final class SubmitMultisigSheet: Sheet {
     private let details = Form.group([])
     private let pasteView = Widget(gtk_text_view_new()!)
     private var submitterPicker: Widget!
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var submitButton: Widget!
 
     init(model: WalletViewModel) {
@@ -43,7 +43,7 @@ final class SubmitMultisigSheet: Sheet {
             self.submitter = list.indices.contains(index) ? list[index] : nil
             self.update()
         }
-        passphraseField = Form.password("Password", onChange: { [unowned self] in self.update() })
+        password = PasswordField(model: model, wallet: nil, onChange: { [unowned self] in self.update() })
         gtk_text_view_set_wrap_mode(pasteView.as(), GTK_WRAP_WORD_CHAR)
         gtk_text_view_set_monospace(pasteView.as(), 1)
         pasteView.size(height: 60).classes("phrase-editor")
@@ -53,7 +53,7 @@ final class SubmitMultisigSheet: Sheet {
         content.setChildren([
             Sheet.title("Submit multisig transaction"),
             Form.group([proposalPicker]), details,
-            Form.group([paste, submitterPicker, passphraseField,
+            Form.group([paste, submitterPicker] + password.rows + [
                         Form.note("The submitting account pays the fee; the multisig does the rest. Signatures are checked against the multisig's keys before anything is sent.").row]),
         ])
         submitButton = button("Submit", role: .prominent, isDefault: true) { [unowned self] in Task { await self.submit() } }
@@ -63,10 +63,10 @@ final class SubmitMultisigSheet: Sheet {
     private var proposals: [MultisigProposal] { model.currentMultisigProposals }
     private var proposal: MultisigProposal? { proposals.first { $0.id == proposalID } }
     private var submitters: [Wallet] { model.wallets.filter { $0.keyKind.canSign && $0.publicKey != nil } }
-    private var needsPassphrase: Bool { submitter?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: submitter) }
     private var signsOnLedger: Bool { submitter?.keyKind == .ledger }
     private var canSubmit: Bool {
-        proposal?.isReady == true && submitter != nil && estimate != nil && !isWorking && !(needsPassphrase && Form.text(passphraseField).isEmpty)
+        proposal?.isReady == true && submitter != nil && estimate != nil && !isWorking && !(needsPassphrase && password.text.isEmpty)
     }
 
     private func update() {
@@ -103,8 +103,7 @@ final class SubmitMultisigSheet: Sheet {
             }
         }
         Form.setRows(details, rows)
-        passphraseField.isVisible = needsPassphrase
-        if let submitter { adw_preferences_row_set_title(passphraseField.as(), "Password for “\(submitter.alias)”") }
+        if password.wallet != submitter { password.wallet = submitter }
         refreshEstimate()
 
         setBusy(isWorking ? (signsOnLedger ? "Confirm on your Ledger…" : "Submitting…") : nil)
@@ -167,8 +166,8 @@ final class SubmitMultisigSheet: Sheet {
         update()
         defer { isWorking = false; update() }
         do {
-            let hash = try await model.submitMultisig(proposal, from: submitter, limits: estimate?.limits, passphrase: needsPassphrase ? Form.text(passphraseField) : nil)
-            Form.clear(passphraseField)
+            let hash = try await model.submitMultisig(proposal, from: submitter, limits: estimate?.limits, passphrase: needsPassphrase ? password.text : nil)
+            password.clear()
             showDone(hash)
         } catch {
             setError(error.localizedDescription)
@@ -189,6 +188,6 @@ final class SubmitMultisigSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        passphraseField.map(Form.clear)
+        password?.clear()
     }
 }

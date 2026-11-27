@@ -24,7 +24,7 @@ final class ProofOfPossessionSheet: Sheet {
         if !needsPassphrase { prove() }
     }
 
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var passphrase: String { passphraseField.map(Form.text) ?? "" }
 
     private func showForm() {

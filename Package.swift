@@ -85,6 +85,8 @@ let package = Package(
                 // The images AssetListView draws, out of the asset catalogue Xcode compiles.
                 .copy("upstream/Signet/Resources/Assets.xcassets/TezosToken.imageset/tezos-token-round.svg"),
                 .copy("upstream/Signet/Resources/Assets.xcassets/EtherlinkLogo.imageset/etherlink-avatar.svg"),
+                .copy("upstream/Signet/Resources/Assets.xcassets/TezosXLogo.imageset/tezos-x-round.svg"),
+                .copy("upstream/Signet/Resources/Assets.xcassets/TezosXMini.imageset/tezos-x-mini.svg"),
                 .copy("upstream/Signet/Resources/Assets.xcassets/ShieldLogo.imageset/shield.png"),
             ],
             swiftSettings: [

@@ -31,22 +31,22 @@ final class BridgeSheet: Sheet {
     private let passphraseGroup: Widget
     private let result = UI.vbox(spacing: 10)
     private let amountField: Widget
-    private let passphraseField: Widget
+    private let password: PasswordField
     private let speedPicker: Widget
     private var bridgeButton: Widget!
 
     init(model: WalletViewModel) {
         amountField = Form.entry("Amount (tz)", monospaced: true)
-        passphraseField = Form.password("Password for “\(model.selectedWallet?.alias ?? "")”")
+        password = PasswordField(model: model, wallet: model.selectedWallet)
         speedPicker = Form.picker("Speed", options: Speed.allCases.map(\.rawValue))
         header = Sheet.accountTitle("Bridge", wallet: model.selectedWallet).root
         speedGroup = Form.group([speedPicker])
-        passphraseGroup = Form.group([passphraseField])
+        passphraseGroup = Form.group(password.rows)
         super.init(model: model, width: 560)
+        password.onChange = { [unowned self] in self.updateButtons() }
         body.setChildren([Form.group([amountField]), details, speedGroup, passphraseGroup])
         content.setChildren([header, sides, body, result])
         Signals.connect(amountField, "changed") { [unowned self] in self.changed() }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateButtons() }
         Signals.connect(speedPicker, "notify::selected") { [unowned self] in
             self.speed = Form.selected(self.speedPicker) == 1 ? .slow : .fast
             self.render()
@@ -61,11 +61,11 @@ final class BridgeSheet: Sheet {
 
     private var wallet: Wallet? { submitted?.context.wallet ?? model.selectedWallet }
     private var network: Network { submitted?.context.network ?? model.network }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
     private var spendable: Decimal? { model.tezBalance?.spendable }
     private var etherlink: AssetBalance? { model.assets.first { $0.kind == .etherlink } }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
     private var amount: Decimal? {
         if let submitted { return submitted.amount }
         let text = Form.text(amountField).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
@@ -180,7 +180,7 @@ final class BridgeSheet: Sheet {
         }
         Form.setRows(details, rows)
         speedGroup.isVisible = direction == .toTezos
-        passphraseGroup.isVisible = direction == .toEtherlink && needsPassphrase
+        passphraseGroup.isVisible = direction == .toEtherlink && wallet?.keyKind == .encrypted
     }
 
     private func doneView(hash: String, level: Int) -> [Widget] {
@@ -245,7 +245,7 @@ final class BridgeSheet: Sheet {
         render()
         do {
             let (hash, level) = try await model.bridgeToEtherlink(amount: amount, approved: approved, passphrase: needsPassphrase ? passphrase : nil)
-            Form.clear(passphraseField)
+            password.clear()
             step = .done(hash: hash, level: level)
         } catch {
             setError(error.localizedDescription)
@@ -257,6 +257,6 @@ final class BridgeSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }

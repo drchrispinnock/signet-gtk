@@ -24,7 +24,7 @@ final class StakingSheet: Sheet {
     private let bakerList = UI.vbox(spacing: 0)
     private let pasted = UI.vbox(spacing: 0)
     private var amountField: Widget!
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var feeValue: Widget?
     private var confirmButton: Widget?
 
@@ -40,7 +40,7 @@ final class StakingSheet: Sheet {
         Signals.connect(filterField, "search-changed") { [unowned self] in self.updateBakerList() }
         amountField = Form.entry("Amount (tz)", monospaced: true, onChange: { [unowned self] in self.updateButtons() },
                                  onSubmit: { [unowned self] in self.continueWithAmount() })
-        passphraseField = Form.password("Password for “\(wallet?.alias ?? "")”", onChange: { [unowned self] in self.updateButtons() },
+        password = PasswordField(model: model, wallet: wallet, onChange: { [unowned self] in self.updateButtons() },
                                         onSubmit: { [unowned self] in if case .confirm(let op) = self.mode, self.canConfirm { Task { await self.perform(op) } } })
 
         trackers.append(Tracker { [unowned self] in
@@ -59,10 +59,10 @@ final class StakingSheet: Sheet {
 
     private var info: DelegateInfo? { model.delegateInfo }
     private var balance: TezBalance? { model.tezBalance }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var canOperate: Bool { wallet?.keyKind.canSign == true }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
     private var canConfirm: Bool { estimate != nil && !(needsPassphrase && passphrase.isEmpty) }
     private var watchOnlyNote: String {
         "Signet holds only this address's public key, so it can show but not change its delegation."
@@ -256,9 +256,9 @@ final class StakingSheet: Sheet {
         feeValue = fee
         updateFee()
         rows.append(Form.labeled("Fee", content: fee))
-        if needsPassphrase {
-            rows.append(passphraseField)
-            focus(passphraseField)
+        if wallet?.keyKind == .encrypted {
+            rows += password.rows
+            if needsPassphrase { focus(password.entry) }
         }
         if signsOnLedger { rows.append(Form.note("Your Ledger will show this operation for approval.").row) }
         return Form.group(rows)
@@ -331,7 +331,7 @@ final class StakingSheet: Sheet {
         defer { workingOnDevice = false }
         do {
             let result = try await model.performStaking(op, limits: estimate?.limits, passphrase: needsPassphrase ? passphrase : nil)
-            Form.clear(passphraseField)
+            password.clear()
             mode = .done(hash: result.hash, level: result.level, op)
         } catch {
             setError(error.localizedDescription)
@@ -339,5 +339,5 @@ final class StakingSheet: Sheet {
         }
     }
 
-    override func closed() { Form.clear(passphraseField) }
+    override func closed() { password.clear() }
 }

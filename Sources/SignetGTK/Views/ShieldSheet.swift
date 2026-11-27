@@ -30,17 +30,17 @@ final class ShieldSheet: Sheet {
     private let pending = UI.vbox(spacing: 6)
     private let result = UI.vbox(spacing: 10)
     private let amountField: Widget
-    private let passphraseField: Widget
+    private let password: PasswordField
 
     init(model: WalletViewModel) {
         amountField = Form.entry("Amount (tz)", monospaced: true)
-        passphraseField = Form.password("Password for “\(model.selectedWallet?.alias ?? "")”")
-        passphraseGroup = Form.group([passphraseField])
+        password = PasswordField(model: model, wallet: model.selectedWallet)
+        passphraseGroup = Form.group(password.rows)
         super.init(model: model, width: 560)
+        password.onChange = { [unowned self] in self.updateButtons() }
         compose.setChildren([Form.group([amountField]), details, passphraseGroup, pending])
         content.setChildren([Sheet.accountTitle("Shield tez", wallet: model.selectedWallet).root, sides, compose, result])
         Signals.connect(amountField, "changed") { [unowned self] in self.changed() }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateButtons() }
         trackers.append(Tracker { [unowned self] in
             // Balances, the context, the pools on file and the progress line follow the model.
             _ = (self.model.tezBalance, self.model.assets, self.model.bridgeContext, self.model.canShield,
@@ -52,12 +52,12 @@ final class ShieldSheet: Sheet {
 
     private var wallet: Wallet? { submitted?.context.wallet ?? model.selectedWallet }
     private var network: Network { submitted?.context.network ?? model.network }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
     private var spendable: Decimal? { model.tezBalance?.spendable }
     private var shielded: AssetBalance? { model.assets.first { $0.kind == .shielded } }
     private var tokenIsSet: Bool { model.shieldedOperatorTokenIsSet(for: model.network) }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
     private var amount: Decimal? {
         if let submitted { return submitted.amount }
         let text = Form.text(amountField).trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
@@ -165,7 +165,7 @@ final class ShieldSheet: Sheet {
             rows.append(Form.note("Shielding needs the TzEL operator's access token. Enter it in Networks under Shielded Transactions.", icon: "dialog-password-symbolic", style: "warning-text").row)
         }
         Form.setRows(details, rows)
-        passphraseGroup.isVisible = needsPassphrase
+        passphraseGroup.isVisible = wallet?.keyKind == .encrypted
     }
 
     /// Deposits already on the rollup whose shield has not happened yet.
@@ -321,7 +321,7 @@ final class ShieldSheet: Sheet {
             submitted = nil
             step = .compose
         }
-        Form.clear(passphraseField)
+        password.clear()
         changed()
     }
 
@@ -343,6 +343,6 @@ final class ShieldSheet: Sheet {
     override func closed() {
         prepareTask?.cancel()
         estimateTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }
