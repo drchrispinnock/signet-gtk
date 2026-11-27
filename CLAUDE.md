@@ -106,7 +106,8 @@ Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of i
   the library dependencies itself. Built on Debian, the RPM did not work on Rocky (nor the
   Arch package or the `.deb` on Ubuntu), so it and `build-arch.sh` refuse to run anywhere but
   their own systems (`/etc/os-release`), for a build farm to make them natively.
-  Only the `.deb` and the tarball are released, and the README supports Debian 13 alone.
+  Only the `.deb` and the tarball are released (Debian 13); the apt repository also carries
+  Ubuntu 26.04's `.deb`, and the README's Install section names both.
 - `packaging/tarball/build-tarball.sh`: the staged tree with `install.sh` (`/usr/local`, `--user`
   for `~/.local`, or `--prefix`; it writes the launcher with the program's full path and keeps a
   manifest for `uninstall.sh`).
@@ -126,7 +127,12 @@ Ledger udev rule from `packaging/linux`, and upstream's 256 px icon. On top of i
 - `apt/aptrepos.sh`: publishes the `.deb`s in `dist` to the apt repository
   (`s3://apt.signetwallet.org`, from the reprepro tree in `apt/repos`; keys in `apt/keys`). The
   user runs it by hand, since the packages are signed with their GPG key: Claude never runs or
-  automates it, and stops at a built `.deb`.
+  automates it, and stops at a built `.deb`. `apt/platforms` lists the platforms it publishes
+  (`debian-13 ubuntu-2604`), `apt/debian` and `apt/ubuntu` hold each reprepro `distributions`
+  (trixie, amd64 and arm64; resolute, amd64), and `apt/index.html` is the repository's front page
+  (copied to its root by `_aptrepos.sh`): extrepo for Debian 13 (Debian's `extrepo` lists the
+  repository as `signetwallet`), then the manual steps (key, one `deb` line per system,
+  install). Keep the page, the README's Install section and the `distributions` files in step.
 
 Packages go in `dist/<platform>/`, the platform named by `packaging/distdir.sh` from
 `/etc/os-release` as pkg-builder's apt script (`apt/aptrepos.sh`) reads them: `debian-13`,

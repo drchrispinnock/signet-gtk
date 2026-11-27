@@ -13,6 +13,25 @@ bridge and dApps on its Michelson side) and shielded tez on the TzEL rollup.
 
 ## Install
 
+### From the APT repository
+
+Signet's APT repository, [apt.signetwallet.org](https://apt.signetwallet.org/), has packages for
+**Debian 13 (trixie)** (amd64 and arm64) and **Ubuntu 26.04 (resolute)** (amd64), and APT keeps
+Signet up to date from it.
+
+- **Debian 13, with extrepo:**
+  ```sh
+  sudo apt install -y extrepo
+  sudo extrepo enable signetwallet
+  sudo apt update && sudo apt install -y signet-gtk
+  ```
+- **Debian 13 or Ubuntu 26.04, by hand:** the repository's
+  [page](https://apt.signetwallet.org/) gives the steps (import the signing key, then add
+  `https://apt.signetwallet.org/debian trixie main` or
+  `https://apt.signetwallet.org/ubuntu resolute main`).
+
+### From the releases page
+
 Packages for **Debian 13 (trixie)** on amd64 are on the
 [releases page](https://github.com/drchrispinnock/signet-gtk/releases), with the Swift runtime
 linked in.
