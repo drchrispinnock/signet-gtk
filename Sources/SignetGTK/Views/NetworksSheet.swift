@@ -144,9 +144,9 @@ final class NetworksSheet: Sheet {
             text += " A new node is asked which chain it serves before it is used, and one on another chain is warned about."
         }
         if model.isL2Enabled(for: base) {
-            text += " With Layer 2 on, the dashboard shows each tz1, tz2 or tz3 account's balance on Etherlink, read from the Layer 2 Michelson node"
+            text += " With Layer 2 on, the dashboard shows each tz1, tz2 or tz3 account's balance on \(Brand.l2), read from the Layer 2 Michelson node"
             text += base.l2DefaultRPCURL.map { " (default \($0.absoluteString))." } ?? " you enter here."
-            text += " The slow and fast governance contracts are Etherlink's kernel-upgrade votes on layer 1 (\(base.defaultEtherlinkGovernance.isEmpty ? "none shipped for \(base.name)" : "mainnet's are shipped")); with one set, Governance gains an Etherlink tab for bakers and their voting keys. Leave a field empty to do without that process."
+            text += " The slow and fast governance contracts are \(Brand.l2)'s kernel-upgrade votes on layer 1 (\(base.defaultEtherlinkGovernance.isEmpty ? "none shipped for \(base.name)" : "mainnet's are shipped")); with one set, Governance gains an \(Brand.l2) tab for bakers and their voting keys. Leave a field empty to do without that process."
         }
         return text
     }
@@ -200,7 +200,7 @@ final class NetworksSheet: Sheet {
 
     /// The warning under a node field: the node serves another chain, or could not be asked.
     private func warning(_ identity: NodeIdentity, for base: Network, layer: NodeMonitor.Layer = .one) -> String {
-        let name = layer == .two ? "\(base.name)'s Etherlink" : base.name
+        let name = layer == .two ? "\(base.name)'s \(Brand.l2)" : base.name
         switch identity {
         case .mismatch(let found, let expected):
             return "This node serves chain \(found), not \(name) (\(expected)). Signet would show it in red and refuse to sign through it."

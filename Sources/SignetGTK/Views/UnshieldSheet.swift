@@ -30,7 +30,8 @@ final class UnshieldSheet: Sheet {
     private let amountField: Widget
     private let recipientField: Widget
     private let thisAccount: Widget
-    private let executionPassphrase: Widget
+    private var executionPassword: PasswordField!
+    private var executionPasswordGroup: Widget!
     /// The fee, password and Confirm / Cancel under a withdrawal being executed. The sheet keeps
     /// its own reference so the line survives the list being redrawn, and the password field its
     /// focus and text.
@@ -42,22 +43,21 @@ final class UnshieldSheet: Sheet {
         amountField = Form.entry("Amount (tz)", monospaced: true)
         recipientField = Form.entry("To", text: model.selectedWallet?.address.value ?? "", monospaced: true)
         thisAccount = UI.button("This account") {}
-        executionPassphrase = PasswordEntry.make(placeholder: "Password for “\(model.selectedWallet?.alias ?? "")”", onChange: { _ in })
         super.init(model: model, width: 600)
+        executionPassword = PasswordField(model: model, wallet: model.selectedWallet, onChange: { [unowned self] in self.updateConfirm() })
+        executionPasswordGroup = Form.group(executionPassword.rows).size(width: 260)
         thisAccount.align(v: GTK_ALIGN_CENTER).classes("flat")
         Form.addSuffix(thisAccount, to: recipientField)
         gtk_widget_set_tooltip_text(recipientField.pointer, "tz1… or KT1…")
-        executionPassphrase.size(width: 200)
         Signals.connect(thisAccount, "clicked") { [unowned self] in
             if let wallet = self.wallet { Form.setText(self.recipientField, wallet.address.value) }
         }
         Signals.connect(amountField, "changed") { [unowned self] in self.changed() }
         Signals.connect(recipientField, "changed") { [unowned self] in self.changed() }
-        Signals.connect(executionPassphrase, "changed") { [unowned self] in self.updateConfirm() }
         Signals.connect(confirmButton, "clicked") { [unowned self] in
             if let execution = self.execution { Task { await self.execute(execution) } }
         }
-        confirmLine.setChildren([executionFee, executionPassphrase, confirmButton,
+        confirmLine.setChildren([executionFee, executionPasswordGroup, confirmButton,
                                  UI.button("Cancel") { [unowned self] in self.execution = nil; self.render() }])
         g_object_ref_sink(confirmLine.raw)
         compose.setChildren([Form.group([amountField, recipientField]), details, withdrawals])
@@ -76,7 +76,7 @@ final class UnshieldSheet: Sheet {
     private var shielded: AssetBalance? { model.assets.first { $0.kind == .shielded } }
     private var available: Decimal? { model.shieldedWallet.map { Decimal($0.availableMutez) / Mutez.perTez } }
     private var tokenIsSet: Bool { model.shieldedOperatorTokenIsSet(for: model.network) }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
     private var amount: Decimal? {
         if let submitted { return submitted.amount }
@@ -178,7 +178,7 @@ final class UnshieldSheet: Sheet {
             }
             if execution?.withdrawal.id == status.id, let execution, executing == nil {
                 UI.setText(executionFee, "Tezos fee \(AssetBalance.format(execution.estimate.fee, symbol: "tz"))")
-                executionPassphrase.isVisible = needsPassphrase
+                executionPasswordGroup.isVisible = wallet?.keyKind == .encrypted
                 updateConfirm()
                 lines.append(confirmLine)
             }
@@ -189,7 +189,7 @@ final class UnshieldSheet: Sheet {
     }
 
     private func updateConfirm() {
-        confirmButton.isSensitive = !(needsPassphrase && Form.text(executionPassphrase).isEmpty)
+        confirmButton.isSensitive = !(needsPassphrase && executionPassword.text.isEmpty)
     }
 
     private func trailing(for status: ShieldedWithdrawalStatus) -> [Widget] {
@@ -316,13 +316,13 @@ final class UnshieldSheet: Sheet {
         executing = approved.withdrawal.id
         render()
         do {
-            _ = try await model.executeWithdrawal(approved: approved, passphrase: needsPassphrase ? Form.text(executionPassphrase) : nil)
+            _ = try await model.executeWithdrawal(approved: approved, passphrase: needsPassphrase ? executionPassword.text : nil)
             execution = nil
         } catch {
             setError(error.localizedDescription)
         }
         executing = nil
-        Form.clear(executionPassphrase)
+        executionPassword.clear()
         render()
     }
 
@@ -342,7 +342,7 @@ final class UnshieldSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        Form.clear(executionPassphrase)
+        executionPassword.clear()
     }
 
     isolated deinit { g_object_unref(confirmLine.raw) }

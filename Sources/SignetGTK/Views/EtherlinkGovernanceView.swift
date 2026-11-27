@@ -32,7 +32,7 @@ final class EtherlinkGovernanceView {
     private let heading = UI.label(classes: ["heading"])
     private let body = UI.vbox(spacing: 12)
     private let newHashField: Widget
-    private let passphraseField: Widget
+    private let password: PasswordField
     private var hashProblem: Widget?
     private var typedButtons: [Widget] = []
     private var feeValue: Widget?
@@ -42,7 +42,7 @@ final class EtherlinkGovernanceView {
         self.sheet = sheet
         processPicker = Widget(adw_toggle_group_new()!)
         newHashField = Form.entry("Propose or upvote a kernel hash (0x…)", monospaced: true)
-        passphraseField = Form.password("Password for “\(model.selectedWallet?.alias ?? "")”")
+        password = PasswordField(model: model, wallet: model.selectedWallet)
         let processes = model.network.etherlinkGovernanceProcesses
         for candidate in processes {
             let toggle = adw_toggle_new()!
@@ -60,13 +60,13 @@ final class EtherlinkGovernanceView {
             self.reload()
         }
         Signals.connect(newHashField, "changed") { [unowned self] in self.updateTyped() }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateButtons() }
+        password.onChange = { [unowned self] in self.updateButtons() }
         root.setChildren([processPicker, heading, body])
         reload()
     }
 
     private var wallet: Wallet? { model.selectedWallet }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
 
     private var title: String {
@@ -82,7 +82,7 @@ final class EtherlinkGovernanceView {
 
     func closed() {
         loadTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 
     // MARK: Content
@@ -133,7 +133,7 @@ final class EtherlinkGovernanceView {
         }
         var sections = [periodSection(state)]
         if !state.canVote {
-            sections.append(section(nil, [Form.note("This account has no voting power on Etherlink: it is neither a baker in this period's listings nor a voting key that a baker has delegated to and that has claimed its rights.",
+            sections.append(section(nil, [Form.note("This account has no voting power on \(Brand.l2): it is neither a baker in this period's listings nor a voting key that a baker has delegated to and that has claimed its rights.",
                                                     icon: "help-about-symbolic").row]))
         } else if state.periodKind == .proposal {
             sections.append(proposalSection(state))
@@ -274,11 +274,11 @@ final class EtherlinkGovernanceView {
         feeValue = fee
         updateFee()
         rows.append(Form.labeled("Fee", content: fee))
-        if needsPassphrase { rows.append(passphraseField) }
+        if wallet?.keyKind == .encrypted { rows += password.rows }
         if signsOnLedger { rows.append(Form.note("Your Ledger will show this operation for approval.").row) }
         let group = Form.group([])
         for row in rows { Form.append(row, to: group) }
-        if needsPassphrase { sheet.focus(passphraseField) }
+        if needsPassphrase { sheet.focus(password.entry) }
         return group
     }
 
@@ -306,10 +306,10 @@ final class EtherlinkGovernanceView {
         case .confirm(let op):
             let back = sheet.button("Back") { [unowned self] in self.sheet.setError(nil); self.mode = .overview }
             let confirm = sheet.button("Confirm", role: .prominent, isDefault: true) { [unowned self] in
-                guard self.estimate != nil, !(self.needsPassphrase && Form.text(self.passphraseField).isEmpty) else { return }
+                guard self.estimate != nil, !(self.needsPassphrase && self.password.text.isEmpty) else { return }
                 Task { await self.perform(op) }
             }
-            confirm.isSensitive = estimate != nil && !(needsPassphrase && Form.text(passphraseField).isEmpty)
+            confirm.isSensitive = estimate != nil && !(needsPassphrase && password.text.isEmpty)
             sheet.setButtons([back, confirm])
         case .working:
             sheet.setButtons([])
@@ -369,8 +369,8 @@ final class EtherlinkGovernanceView {
         confirmation += 1
         mode = .working(op)
         do {
-            let result = try await model.performEtherlinkGovernance(op, process: process, approved: estimate, passphrase: needsPassphrase ? Form.text(passphraseField) : nil)
-            Form.clear(passphraseField)
+            let result = try await model.performEtherlinkGovernance(op, process: process, approved: estimate, passphrase: needsPassphrase ? password.text : nil)
+            password.clear()
             mode = .done(hash: result.hash, level: result.level, op)
             Form.clear(newHashField)
             await load()

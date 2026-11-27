@@ -22,8 +22,8 @@ final class BakingSheet: Sheet {
     private let body = UI.vbox(spacing: 10)
     private var feeValue: Widget?
     // Fields kept across renders.
-    private var passphraseField: Widget!
-    private var keyPassphraseField: Widget!
+    private var password: PasswordField!
+    private var keyPassword: PasswordField!
     private var pastedKeyField: Widget!
     private var pastedProofField: Widget!
     private var limitField: Widget!
@@ -41,8 +41,8 @@ final class BakingSheet: Sheet {
         heading = header.title
         content.setChildren([header.root, body])
         let changed: @MainActor () -> Void = { [unowned self] in self.updateButtons() }
-        passphraseField = Form.password("Password for “\(wallet?.alias ?? "")”", onChange: changed)
-        keyPassphraseField = Form.password("Password (to prove possession)", onChange: changed)
+        password = PasswordField(model: model, wallet: wallet, onChange: changed)
+        keyPassword = PasswordField(model: model, wallet: nil, label: "Password (to prove possession)", onChange: changed)
         pastedKeyField = Form.entry("Or paste a public key or address", monospaced: true) { [unowned self] in
             if !Form.text(self.pastedKeyField).isEmpty, self.chosenKeyWallet != nil {
                 self.chosenKeyWallet = nil
@@ -61,12 +61,12 @@ final class BakingSheet: Sheet {
     }
 
     private var baker: DelegateInfo.Baker? { model.delegateInfo?.baker }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
     private var canOperate: Bool { wallet?.keyKind.canSign == true }
     /// Quantumnet has no companion keys; consensus keys there may be tz6 (XMSS).
     private var hasCompanionKeys: Bool { model.network.chain != "quantumnet" }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
 
     private var title: String {
         switch mode {
@@ -194,7 +194,7 @@ final class BakingSheet: Sheet {
         lookupTask?.cancel(); lookupTask = nil
         chosenKeyWallet = nil
         resolvedKey = nil; lookupNote = nil
-        for field in [pastedKeyField!, pastedProofField!, keyPassphraseField!] { Form.clear(field) }
+        for field in [pastedKeyField!, pastedProofField!, keyPassword.entry] { Form.clear(field) }
     }
 
     /// The pasted field, read as a key or an address.
@@ -262,7 +262,7 @@ final class BakingSheet: Sheet {
     private var proofNeeded: Bool { pickedIsBLS }
     private var proofAvailable: Bool {
         guard proofNeeded else { return true }
-        if let w = chosenKeyWallet, w.scheme == .tz4, w.keyKind.canSign { return w.keyKind != .encrypted || !Form.text(keyPassphraseField).isEmpty }
+        if let w = chosenKeyWallet, w.scheme == .tz4, w.keyKind.canSign { return !model.needsPassphrase(for: w) || !keyPassword.text.isEmpty }
         return !Form.text(pastedProofField).trimmingCharacters(in: .whitespaces).isEmpty
     }
 
@@ -293,8 +293,9 @@ final class BakingSheet: Sheet {
         if proofNeeded {
             if let w = chosenKeyWallet, w.scheme == .tz4, w.keyKind.canSign {
                 if w.keyKind == .encrypted {
-                    adw_preferences_row_set_title(keyPassphraseField.as(), "Password for “\(w.alias)” (to prove possession)")
-                    proof.append(Form.group([keyPassphraseField]))
+                    keyPassword.wallet = w
+                    keyPassword.label = "Password for “\(w.alias)” (to prove possession)"
+                    proof.append(Form.group(keyPassword.rows))
                 } else {
                     proof.append(UI.label("Signet will produce the BLS proof of possession from this account's key.", classes: ["dim-label"], wrap: true))
                 }
@@ -346,7 +347,7 @@ final class BakingSheet: Sheet {
         feeValue = fee
         updateFee()
         rows.append(Form.labeled("Fee", content: fee))
-        if needsPassphrase { rows.append(passphraseField); focus(passphraseField) }
+        if wallet?.keyKind == .encrypted { rows += password.rows; if needsPassphrase { focus(password.entry) } }
         if signsOnLedger { rows.append(Form.note("Your Ledger will show this operation for approval.").row) }
         return Form.group(rows)
     }
@@ -399,7 +400,7 @@ final class BakingSheet: Sheet {
             var proof: String?
             if pickedIsBLS {
                 if let keyWallet = chosenKeyWallet, keyWallet.scheme == .tz4, keyWallet.keyKind.canSign {
-                    proof = try await model.proofOfPossession(for: keyWallet, passphrase: keyWallet.keyKind == .encrypted ? Form.text(keyPassphraseField) : nil)
+                    proof = try await model.proofOfPossession(for: keyWallet, passphrase: model.needsPassphrase(for: keyWallet) ? keyPassword.text : nil)
                 } else {
                     proof = Form.text(pastedProofField).trimmingCharacters(in: .whitespaces)
                 }
@@ -427,7 +428,7 @@ final class BakingSheet: Sheet {
         mode = .working(op)
         do {
             let result = try await model.performStaking(op, limits: estimate?.limits, passphrase: needsPassphrase ? passphrase : nil)
-            Form.clear(passphraseField)
+            password.clear()
             mode = .done(hash: result.hash, level: result.level, op)
         } catch {
             setError(error.localizedDescription)
@@ -437,7 +438,7 @@ final class BakingSheet: Sheet {
 
     override func closed() {
         lookupTask?.cancel()
-        Form.clear(passphraseField)
-        Form.clear(keyPassphraseField)
+        password.clear()
+        keyPassword.clear()
     }
 }

@@ -48,7 +48,7 @@ final class CreateMultisigSheet: Sheet {
     private var amountField: Widget!
     private var amountNote: (row: Widget, label: Widget)!
     private let estimateRows = Form.group([])
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var summary: (row: Widget, label: Widget)!
     private var createButton: Widget!
 
@@ -66,7 +66,7 @@ final class CreateMultisigSheet: Sheet {
         Signals.connect(thresholdRow, "notify::value") { [unowned self] in self.thresholdChanged() }
         amountField = Form.entry("Initial balance (tz)", text: "0", monospaced: true, onChange: { [unowned self] in self.refreshEstimate() })
         amountNote = Form.note("")
-        passphraseField = Form.password("Password for “\(payer?.alias ?? "")”", onChange: { [unowned self] in self.updateButtons() })
+        password = PasswordField(model: model, wallet: payer, onChange: { [unowned self] in self.updateButtons() })
         summary = Form.note("")
 
         var rows: [Widget] = [thresholdRow, amountField, amountNote.row]
@@ -75,7 +75,7 @@ final class CreateMultisigSheet: Sheet {
             if !payer.keyKind.canSign { paid.append(UI.label("cannot sign", classes: ["error-text", "caption"])) }
             rows.append(Form.labeled("Paid by", content: UI.hbox(spacing: 8, paid)))
         }
-        if needsPassphrase { rows.append(passphraseField) }
+        if payer?.keyKind == .encrypted { rows += password.rows }
         rows.append(summary.row)
 
         content.setChildren([
@@ -91,7 +91,7 @@ final class CreateMultisigSheet: Sheet {
     }
 
     private var payer: Wallet? { model.selectedWallet }
-    private var needsPassphrase: Bool { payer?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: payer) }
     private var signsOnLedger: Bool { payer?.keyKind == .ledger }
     private var keys: [String] { signers.compactMap(\.key) }
     private var threshold: Int { Int(adw_spin_row_get_value(thresholdRow.opaque)) }
@@ -105,7 +105,7 @@ final class CreateMultisigSheet: Sheet {
     private var allResolved: Bool { !signers.isEmpty && signers.allSatisfy { $0.key != nil } }
     private var canCreate: Bool {
         !Form.text(aliasField).trimmingCharacters(in: .whitespaces).isEmpty && allResolved && threshold >= 1 && threshold <= keys.count
-            && payer?.keyKind.canSign == true && estimate != nil && amount != nil && !(needsPassphrase && Form.text(passphraseField).isEmpty) && !isWorking
+            && payer?.keyKind.canSign == true && estimate != nil && amount != nil && !(needsPassphrase && password.text.isEmpty) && !isWorking
     }
     private var mine: [Wallet] { model.wallets.filter { $0.keyKind != KeyKind.none } }
     private var addressBook: [Wallet] { model.wallets.filter { $0.keyKind == KeyKind.none && !$0.address.isContract } }
@@ -272,7 +272,7 @@ final class CreateMultisigSheet: Sheet {
         defer { isWorking = false; updateButtons() }
         do {
             let contract = try await model.createMultisig(alias: Form.text(aliasField), threshold: threshold, keys: keys, amount: amount ?? 0,
-                                                          limits: estimate?.limits, passphrase: needsPassphrase ? Form.text(passphraseField) : nil)
+                                                          limits: estimate?.limits, passphrase: needsPassphrase ? password.text : nil)
             created = contract
             showDone(contract)
         } catch {
@@ -299,6 +299,6 @@ final class CreateMultisigSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }

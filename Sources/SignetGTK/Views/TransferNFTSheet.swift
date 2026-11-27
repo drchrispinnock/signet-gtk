@@ -34,7 +34,7 @@ final class TransferNFTSheet: Sheet {
     private var shownSuggestions: [Wallet]?
     private var burnToggle: Widget!
     private let details = Form.group([])
-    private let passphraseField: Widget
+    private let password: PasswordField
     private let passphraseGroup: Widget
     private let result = UI.vbox(spacing: 10)
 
@@ -47,13 +47,14 @@ final class TransferNFTSheet: Sheet {
         counts = Dictionary(uniqueKeysWithValues: operation.nfts.map { ($0.id, 1) })
         recipientField = Form.entry(operation.layer == 2 ? "To (tz1, tz2 or tz3 address, name.tez, or an account from your list)"
                                                          : "To (address, name.tez, or an account from your list)", monospaced: true)
-        passphraseField = Form.password("Password for “\(model.selectedWallet?.alias ?? "")”")
-        passphraseGroup = Form.group([passphraseField])
+        password = PasswordField(model: model, wallet: model.selectedWallet)
+        passphraseGroup = Form.group(password.rows)
         let what = operation.nfts.count == 1 ? "NFT" : "\(operation.nfts.count) NFTs"
-        let header = Sheet.accountTitle((operation.kind == .burn ? "Burn " : "Transfer ") + what + (operation.layer == 2 ? " on Etherlink" : ""),
+        let header = Sheet.accountTitle((operation.kind == .burn ? "Burn " : "Transfer ") + what + (operation.layer == 2 ? " on \(Brand.l2)" : ""),
                                         wallet: model.selectedWallet)
         heading = header.root
         super.init(model: model, width: 560)
+        password.onChange = { [unowned self] in self.updateButtons() }
 
         if isBurn {
             burnToggle = Form.toggle("I understand that \(editions == 1 ? "this token" : "these \(editions) tokens") will be gone for good", isOn: false) { [unowned self] in self.render() }
@@ -68,7 +69,6 @@ final class TransferNFTSheet: Sheet {
             let status = Form.row(UI.vbox(spacing: 6, [recipientStatus, suggestions]))
             compose.setChildren([Form.group([recipientField, status]), details, passphraseGroup])
         }
-        Signals.connect(passphraseField, "changed") { [unowned self] in self.updateButtons() }
         content.setChildren([heading, tokens(), compose, result])
 
         trackers.append(Tracker { [unowned self] in
@@ -83,9 +83,9 @@ final class TransferNFTSheet: Sheet {
     private var isBurn: Bool { operation.kind == .burn }
     private var wallet: Wallet? { submitted?.context.wallet ?? model.selectedWallet }
     private var network: Network { model.tokenNetwork(on: operation.layer) }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
-    private var passphrase: String { Form.text(passphraseField) }
+    private var passphrase: String { password.text }
     private var understoodBurn: Bool { burnToggle.map { Form.isOn($0) } ?? false }
 
     /// The request as composed, once it is complete and sound.
@@ -239,12 +239,12 @@ final class TransferNFTSheet: Sheet {
             }
         }
         if !model.canTransferTokens(on: operation.layer) {
-            rows.append(Form.note(operation.layer == 2 ? "Transfers on Etherlink need Layer 2 on and a tz1, tz2 or tz3 account Signet can sign for." : "Signet cannot sign for this account.",
+            rows.append(Form.note(operation.layer == 2 ? "Transfers on \(Brand.l2) need Layer 2 on and a tz1, tz2 or tz3 account Signet can sign for." : "Signet cannot sign for this account.",
                                   style: "warning-text").row)
         }
         Form.setRows(details, rows)
         details.isVisible = !rows.isEmpty
-        passphraseGroup.isVisible = needsPassphrase
+        passphraseGroup.isVisible = wallet?.keyKind == .encrypted
     }
 
     private func updateButtons() {
@@ -297,7 +297,7 @@ final class TransferNFTSheet: Sheet {
         render()
         do {
             let (hash, level) = try await model.transferTokens(request, on: operation.layer, approved: approved, passphrase: needsPassphrase ? passphrase : nil)
-            Form.clear(passphraseField)
+            password.clear()
             step = .done(hash: hash, level: level)
         } catch {
             setError(error.localizedDescription)
@@ -309,6 +309,6 @@ final class TransferNFTSheet: Sheet {
 
     override func closed() {
         estimateTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }

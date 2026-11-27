@@ -22,7 +22,7 @@ final class BuySheet: Sheet {
     private let body = UI.vbox(spacing: 0)
     private var providerPicker: Widget!
     private var fiatPicker: Widget?
-    private var passphraseField: Widget!
+    private var password: PasswordField!
 
     init(model: WalletViewModel) {
         wallet = model.selectedWallet
@@ -31,7 +31,7 @@ final class BuySheet: Sheet {
         // While the widget is up: a spinner while it loads, and whose widget it is.
         let loading = UI.hbox(spacing: 8, [busySpinner, busyLabel]).align(v: GTK_ALIGN_CENTER)
         content.setChildren([UI.hbox(spacing: 12, [header.expand(h: true), loading]), body])
-        passphraseField = Form.password("Password for “\(wallet?.alias ?? "")”", onChange: { [unowned self] in self.updateButtons() })
+        password = PasswordField(model: model, wallet: wallet, onChange: { [unowned self] in self.updateButtons() })
         let providers = BuyProvider.allCases
         providerPicker = Form.picker("Provider", options: providers.map(\.title), selected: providers.firstIndex(of: provider) ?? 0) { [unowned self] in
             let index = Form.selected(self.providerPicker)
@@ -48,7 +48,7 @@ final class BuySheet: Sheet {
     }
 
     private var canSign: Bool { wallet?.keyKind.signsMessages == true }
-    private var needsPassphrase: Bool { wallet?.keyKind == .encrypted }
+    private var needsPassphrase: Bool { model.needsPassphrase(for: wallet) }
     private var signsOnLedger: Bool { wallet?.keyKind == .ledger }
 
     private func render() {
@@ -98,8 +98,8 @@ final class BuySheet: Sheet {
             gtk_label_set_selectable(address.opaque, 1)
             rows.append(Form.labeled("Deliver to", content: address))
         }
-        if needsPassphrase {
-            rows.append(passphraseField)
+        if wallet?.keyKind == .encrypted {
+            rows += password.rows
             rows.append(Form.note("Signet signs a short message with this key so \(provider.title) knows the address is yours.").row)
         } else if signsOnLedger {
             rows.append(Form.note("Your Ledger will ask you to sign a short message proving the address is yours.").row)
@@ -181,7 +181,7 @@ final class BuySheet: Sheet {
             switch step {
             case .prepare:
                 let next = button("Continue", role: .prominent, isDefault: true) { [unowned self] in self.start() }
-                next.isSensitive = !isWorking && !(needsPassphrase && Form.text(passphraseField).isEmpty)
+                next.isSensitive = !isWorking && !(needsPassphrase && password.text.isEmpty)
                 setButtons([cancelButton(), next])
             case .widget:
                 setButtons([button("Open in browser instead") { [unowned self] in self.openInBrowser() },
@@ -195,13 +195,13 @@ final class BuySheet: Sheet {
         isWorking = true
         updateButtons()
         let (provider, fiat) = (provider, fiat)
-        let passphrase = needsPassphrase ? Form.text(passphraseField) : nil
+        let passphrase = needsPassphrase ? password.text : nil
         let dark = adw_style_manager_get_dark(adw_style_manager_get_default()) != 0
         Task {
             defer { isWorking = false; updateButtons() }
             do {
                 let url = try await model.buyURL(provider: provider, fiat: fiat, passphrase: passphrase, embedded: true, dark: dark)
-                Form.clear(passphraseField)
+                password.clear()
                 step = .widget(url)
                 render()
             } catch {
@@ -216,5 +216,5 @@ final class BuySheet: Sheet {
         UI.open(provider.browserURL(from: url), from: content)
     }
 
-    override func closed() { Form.clear(passphraseField) }
+    override func closed() { password.clear() }
 }

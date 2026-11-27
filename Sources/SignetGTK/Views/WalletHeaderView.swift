@@ -140,6 +140,7 @@ enum Operations {
         Sheet(action: "forget-account", title: "Forget account", flag: \.isPresentingForget),
         Sheet(action: "dapps", title: "dApps", flag: \.isPresentingConnectDApp),
         Sheet(action: "bridge", title: "Bridge", flag: \.isPresentingBridge),
+        Sheet(action: "move-assets", title: "Move assets", flag: \.isPresentingMoveAssets),
         Sheet(action: "shield", title: "Shield tez", flag: \.isPresentingShield),
         Sheet(action: "unshield", title: "Unshield tez", flag: \.isPresentingUnshield),
         Sheet(action: "send-shielded", title: "Send shielded", flag: \.isPresentingSendShielded),
@@ -191,6 +192,7 @@ enum Operations {
             actions.setEnabled("forget-account", selected)
             actions.setEnabled("baking", selected)
             actions.setEnabled("refresh", selected)
+            actions.setEnabled("move-assets", model.canMoveAssets)
             actions.setChoice(selectAccount, model.selectedWallet.map(key(for:)) ?? "")
             actions.setChoice(selectNetwork, model.network.name)
         }
@@ -241,6 +243,7 @@ enum Operations {
         menu.item("Forget account…", action: "forget-account")
         menu.section().item("dApps…", action: "dapps")
         if model.canBridge { menu.item("Bridge…", action: "bridge") }
+        menu.item("Move assets…", action: "move-assets")
         if model.canShield {
             menu.section()
                 .item("Shield tez…", action: "shield")

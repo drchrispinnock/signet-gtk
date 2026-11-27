@@ -29,7 +29,7 @@ struct RemoteSignerSocketTests {
             #endif
             var address = sockaddr_in()
             address.sin_family = sa_family_t(AF_INET)
-            address.sin_addr.s_addr = inet_addr("127.0.0.1")
+            address.sin_addr.s_addr = in_addr_t(0x7f00_0001).bigEndian   // 127.0.0.1
             address.sin_port = 0
             var length = socklen_t(MemoryLayout<sockaddr_in>.size)
             let bound = withUnsafeMutablePointer(to: &address) { pointer in
@@ -50,7 +50,14 @@ struct RemoteSignerSocketTests {
             }
         }
 
-        deinit { shutdown(listener, Int32(SHUT_RDWR)); close(listener) }
+        deinit {
+            #if os(FreeBSD)
+            shutdown(listener, Int32(SHUT_RDWR.rawValue))   // an enum in FreeBSD 15's headers
+            #else
+            shutdown(listener, Int32(SHUT_RDWR))
+            #endif
+            close(listener)
+        }
 
         private func read(_ connection: Int32, _ count: Int) -> [UInt8]? {
             var bytes = [UInt8](repeating: 0, count: count)
@@ -96,7 +103,7 @@ struct RemoteSignerSocketTests {
         defer { close(probe) }
         var address = sockaddr_in()
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_addr.s_addr = in_addr_t(0x7f00_0001).bigEndian   // 127.0.0.1
         var length = socklen_t(MemoryLayout<sockaddr_in>.size)
         _ = withUnsafeMutablePointer(to: &address) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(probe, $0, length) == 0 && getsockname(probe, $0, &length) == 0 }

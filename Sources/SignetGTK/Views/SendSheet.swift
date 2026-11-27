@@ -71,7 +71,7 @@ final class SendSheet: Sheet {
     }
 
     private static func makeSend(model: WalletViewModel, sender: Wallet, wallets: [Wallet], context: SideContext) -> SendViewModel {
-        SendViewModel(
+        let send = SendViewModel(
             sender: sender,
             wallets: wallets,
             chain: context.chain,
@@ -81,6 +81,8 @@ final class SendSheet: Sheet {
             signerProvider: { [model] wallet, passphrase in try MainActor.assumeIsolated { try model.signingKey(for: wallet, passphrase: passphrase) } },
             proofProvider: { [model] wallet, passphrase in try await model.proofOfPossession(for: wallet, passphrase: passphrase) }
         )
+        send.rememberedPassphraseExpiry = { [model] in model.rememberedPassphraseExpiry(for: $0) }
+        return send
     }
 
     private func showStep() {
@@ -320,6 +322,9 @@ private final class ConfirmTransferView {
             passphraseRow = row
             children.append(row)
             sheet.focus(field)
+        } else if send.sender.keyKind == .encrypted, let until = send.rememberedPassphraseExpiry(send.sender) {
+            children.append(UI.hbox(spacing: 8, [UI.image(icon: "dialog-password-symbolic").classes("dim-label"),
+                                                 UI.label("Password remembered until \(until.formatted(date: .omitted, time: .shortened))", classes: ["dim-label"])]))
         }
         sheet.content.setChildren(children)
 

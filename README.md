@@ -8,22 +8,41 @@
 Port of the [Signet](https://github.com/drchrispinnock/signet) Tezos wallet to Linux and other
 Unices: GTK 4 and libadwaita, compiled from the Mac app's own Swift sources. It keeps accounts in
 `~/.signet` in octez-client's format, works with a Ledger, and does sending, staking, baking,
-governance, multisig and dApps (Octez Connect) on layer 1, Etherlink (send, receive, the
-bridge and dApps on its Michelson side) and shielded tez on the TzEL rollup.
+governance, multisig, token, NFT and Tezos Domains transfers and dApps (Octez Connect) on
+layer 1, Etherlink (send, receive, the bridge both ways and dApps on its Michelson side),
+moving everything from one account to another, and shielded tez on the TzEL rollup.
 
 ## Install
 
-Packages are on the [releases page](https://github.com/drchrispinnock/signet-gtk/releases). Each
-has the Swift runtime linked in and needs GTK 4.18 and libadwaita 1.7 or newer (Debian 13,
-Ubuntu 25.04 and later, Fedora 42, openSUSE Tumbleweed, Arch).
+### From the APT repository
 
-- **Debian, Ubuntu:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
-- **Fedora, openSUSE:** `sudo dnf install ./signet-gtk-<version>-1.x86_64.rpm` (or `zypper install`)
-- **Arch:** `sudo pacman -U signet-gtk-bin-<version>-1-x86_64.pkg.tar.zst`
-- **Anything else:** unpack `signet-gtk-<version>-linux-x86_64.tar.xz` and run `sudo ./install.sh`
-  (or `./install.sh --user` to install into `~/.local` without root); `uninstall.sh` removes it.
+Signet's APT repository, [apt.signetwallet.org](https://apt.signetwallet.org/), has packages for
+**Debian 13 (trixie)** (amd64 and arm64) and **Ubuntu 26.04 (resolute)** (amd64), and APT keeps
+Signet up to date from it.
 
-Signet then appears in the applications menu. The packages install a udev rule that lets you use
+- **Debian 13, with extrepo:**
+  ```sh
+  sudo apt install -y extrepo
+  sudo extrepo enable signetwallet
+  sudo apt update && sudo apt install -y signet-gtk
+  ```
+- **Debian 13 or Ubuntu 26.04, by hand:** the repository's
+  [page](https://apt.signetwallet.org/) gives the steps (import the signing key, then add
+  `https://apt.signetwallet.org/debian trixie main` or
+  `https://apt.signetwallet.org/ubuntu resolute main`).
+
+### From the releases page
+
+Packages for **Debian 13 (trixie)** on amd64 are on the
+[releases page](https://github.com/drchrispinnock/signet-gtk/releases), with the Swift runtime
+linked in.
+
+- **Debian 13:** `sudo apt install ./signet-gtk_<version>_amd64.deb`
+- **Or the tarball, on Debian 13:** unpack `signet-gtk-<version>-linux-x86_64.tar.xz` and run
+  `sudo ./install.sh` (or `./install.sh --user` to install into `~/.local` without root);
+  `uninstall.sh` removes it.
+
+Signet then appears in the applications menu. The package installs a udev rule that lets you use
 a Ledger without root; with the tarball's `--user` install, `install.sh` prints the one command
 that adds it.
 
@@ -31,8 +50,7 @@ that adds it.
 
 You need Swift 6 (tested with 6.4) and the development files for GTK 4, libadwaita,
 WebKitGTK 6.0 (its JavaScriptCore runs the Taquito bridge, its web view the Buy sheet's on-ramp),
-hidapi and libwebp. These steps have been tried on Debian 13 and
-Ubuntu 26.10.
+hidapi and libwebp. These steps have been tried on Debian 13.
 
 **1. System packages.** The first two lines are what Swift itself needs, the rest is for Signet:
 
@@ -76,9 +94,8 @@ program, so it runs on a machine without Swift. The program looks for its resour
 makes a debug build in `.build/debug`. To update later: `git pull && git submodule update`, then
 build again.
 
-Other distributions need the same libraries under their own names, for example on Fedora
-`gtk4-devel libadwaita-devel javascriptcoregtk6.0-devel webkitgtk6.0-devel hidapi-devel libwebp-devel zlib-ng-compat-devel`, and on Arch
-`gtk4 libadwaita webkitgtk-6.0 hidapi libwebp zlib`; `swiftly init` lists what Swift needs there.
+Elsewhere, install the same libraries under their own names (GTK 4.18 and libadwaita 1.7 or
+newer); `swiftly init` lists what Swift needs.
 
 Run the tests with:
 
@@ -88,39 +105,50 @@ swift build --build-tests && swift test --skip-build --no-parallel
 
 ### FreeBSD
 
-Signet builds and runs on FreeBSD with Swift's FreeBSD preview toolchain (see
-[swift.org/install](https://www.swift.org/install/)). These steps have been tried on FreeBSD 15.1
-on amd64, with a Swift 6.5 development snapshot made for FreeBSD 14.
+Signet builds and runs on FreeBSD with FreeBSD's own Swift package, `swift6`. These steps have
+been tried on FreeBSD 15.1 on amd64 with `swift6` 6.4. FreeBSD builds that package only for
+amd64 (and powerpc64le), so there is no arm64 Swift to build with yet.
 
-**1. Packages.** The first line is what the Swift toolchain needs (`compat14x-amd64` only when
-running a toolchain made for FreeBSD 14 on 15), the second is for Signet. GTK needs at least one
-font installed: with none, the window comes up blank.
+**1. Packages.** `swift6` is the compiler, the rest is for Signet. GTK needs at least one font
+installed: with none, the window comes up blank.
 
 ```sh
-sudo pkg install git curl sqlite3 libuuid compat14x-amd64 \
-    pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp zbar dejavu adwaita-icon-theme
+sudo pkg install swift6 git pkgconf gtk4 libadwaita webkit2-gtk_60 hidapi webp curl \
+    zbar dejavu adwaita-icon-theme
 ```
 
-**2. Swift.** The toolchain is a tarball holding a `usr` directory; unpack it anywhere and put its
-`usr/bin` on your path, for example:
+zbar is only opened when Signet runs: without it Signet works, but Scan QR code does not show.
+
+**2. Swift.** The package installs under `/usr/local/swift6`; put its `bin` on your path:
 
 ```sh
-mkdir ~/swift && tar xzf <toolchain>.tar.gz -C ~/swift
-export PATH=$HOME/swift/usr/bin:$PATH     # sh; for csh: set path = ($HOME/swift/usr/bin $path)
+export PATH=/usr/local/swift6/usr/local/bin:$PATH   # sh; for csh: set path = (/usr/local/swift6/usr/local/bin $path)
 swift --version
 ```
 
-**3. Signet** builds the same way as on Linux:
+**3. Signet.** Clone it with the Mac app as a submodule, build and run:
 
 ```sh
 git clone --recursive https://github.com/drchrispinnock/signet-gtk.git
 cd signet-gtk
-swift build -c release --static-swift-stdlib
+swift build -c release
 .build/release/signet-gtk
 ```
 
-The tests run as on Linux too; two of them need `python3` (`sudo pkg install python3`). Using a
-Ledger on FreeBSD has not been tried yet.
+This build uses the Swift runtime from the `swift6` package, so keep the package installed. To
+link the runtime in instead, so that the program runs on a machine without `swift6`, use the
+build `packaging/stage.sh` makes for the FreeBSD package (with Swift 6.4, `--static-swift-stdlib`
+on its own is ignored on FreeBSD, or never finishes):
+
+```sh
+swift build -c release -Xswiftc -static-stdlib --build-system native --scratch-path .build-freebsd
+.build-freebsd/release/signet-gtk
+```
+
+Its resources are in `signet-gtk_Signet.resources` beside it: copy both together if you move it.
+
+The tests run as on Linux. Two of them need `python3` (`sudo pkg install python3`), and the QR
+code tests need zbar. Using a Ledger on FreeBSD has not been tried yet.
 
 If the window comes up blank and the terminal fills with GTK warnings about labels needing a
 height of over a million pixels, no font is installed: `sudo pkg install dejavu`, quit Signet and
@@ -148,15 +176,17 @@ GSK_RENDERER=cairo signet-gtk/.build/release/signet-gtk
 
 ## Make the packages
 
-From a source checkout, after building once:
+On Debian 13, from a source checkout, after building once:
 
 ```sh
-packaging/deb/build-deb.sh          # dist/signet-gtk_<version>_<arch>.deb       (needs dpkg-deb)
-packaging/rpm/build-rpm.sh          # dist/signet-gtk-<version>-1.<arch>.rpm     (needs rpmbuild: apt install rpm)
-packaging/tarball/build-tarball.sh  # dist/signet-gtk-<version>-linux-<arch>.tar.xz
-packaging/arch/build-arch.sh        # dist/signet-gtk-bin-…pkg.tar.zst, and dist/arch/PKGBUILD for the AUR
-                                    #   (needs makepkg: apt install makepkg; run after the tarball)
+packaging/deb/build-deb.sh          # dist/debian-13/signet-gtk_<version>_<arch>.deb       (needs dpkg-deb)
+packaging/tarball/build-tarball.sh  # dist/debian-13/signet-gtk-<version>-linux-<arch>.tar.xz
 ```
+
+`packaging/rpm` and `packaging/arch` build only on the systems they package for. With Docker,
+`packaging/farm/build.sh` builds every package on its own system, in containers, into
+`dist/<platform>/` (`debian-13`, `ubuntu-2604`, `fedora-45`, `arch`), and
+`packaging/farm/smoke.sh` installs each into a clean container and starts it.
 
 The version is the repository's tag when the commit is tagged (`v0.8` gives `0.8`), otherwise the
 last tag plus the date and commit; `VERSION=…` overrides it. `SKIP_BUILD=1` reuses the release

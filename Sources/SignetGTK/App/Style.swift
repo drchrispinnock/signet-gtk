@@ -101,6 +101,10 @@ enum Style {
     .nft-tile { border-radius: 10px; border: 1px solid alpha(currentColor, 0.25); }
     .nft-placeholder { background: alpha(currentColor, 0.1); }
     .tile-chip { padding: 2px 6px; border-radius: 999px; background: alpha(black, 0.6); color: white; }
+    /* The dashboard's notice of Tezos Domains names expiring soon (`ExpiringDomainsNotice`). */
+    .expiring-domains { padding: 10px; border-radius: 8px; background: alpha(@warning_color, 0.1); }
+    /* The L2 capsule of Settings' "Layer marks" (`EtherlinkMark`). */
+    .layer-mark { font-size: 0.62em; font-weight: bold; color: white; background: @accent_bg_color; border-radius: 999px; padding: 0 4px; }
     button.menu-item { font-weight: normal; }
     button.layer-toggle { padding: 2px 5px; min-height: 0; min-width: 0; }
     .selected-tile .nft-tile { outline: 3px solid @accent_bg_color; outline-offset: -3px; }

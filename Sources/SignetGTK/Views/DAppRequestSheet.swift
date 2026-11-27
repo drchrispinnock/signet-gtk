@@ -16,7 +16,7 @@ final class DAppRequestSheet: Sheet {
     private var prepareTask: Task<Void, Never>?
     private let body = UI.vbox(spacing: 0)
     private let dappError = UI.label(classes: ["error-text"], wrap: true)
-    private var passphraseField: Widget!
+    private var password: PasswordField!
     private var walletChoices: [Wallet] = []
     private var walletPicker: Widget?
     private var approveButton: Widget!
@@ -28,7 +28,7 @@ final class DAppRequestSheet: Sheet {
         dapps.clearMessages()
         chosenWallet = model.selectedWallet.flatMap { $0.publicKey != nil && $0.keyKind.canSign ? $0 : nil }
             ?? model.wallets.first { $0.publicKey != nil && $0.keyKind.canSign }
-        passphraseField = Form.password("Password", onChange: { [unowned self] in self.updateButtons() })
+        password = PasswordField(model: model, wallet: nil, onChange: { [unowned self] in self.updateButtons() })
 
         var host: [Widget] = [UI.label(request.app.name)]
         if let url = request.app.url { host.append(UI.label(url.host() ?? url.absoluteString, classes: ["dim-label"])) }
@@ -251,14 +251,14 @@ final class DAppRequestSheet: Sheet {
 
     private func passphraseRows(for source: Address) -> [Widget] {
         guard let wallet = dapps.wallet(for: source), wallet.keyKind == .encrypted else { return [] }
-        adw_preferences_row_set_title(passphraseField.as(), "Password for “\(wallet.alias)”")
-        return [passphraseField]
+        if password.wallet != wallet { password.wallet = wallet }
+        return password.rows
     }
 
     private var needsPassphrase: Bool {
         switch request {
         case .operation(_, _, _, _, let source, _), .signPayload(_, _, let source, _, _):
-            return dapps.wallet(for: source)?.keyKind == .encrypted
+            return model.needsPassphrase(for: dapps.wallet(for: source))
         default:
             return false
         }
@@ -284,7 +284,7 @@ final class DAppRequestSheet: Sheet {
         } else {
             let reject = button("Reject", role: .cancel) { [unowned self] in Task { await self.dapps.reject(self.request) } }
             reject.isSensitive = !isWorking
-            approveButton.isSensitive = !(isWorking || (request.isPermission && chosenWallet == nil) || (needsPassphrase && Form.text(passphraseField).isEmpty)
+            approveButton.isSensitive = !(isWorking || (request.isPermission && chosenWallet == nil) || (needsPassphrase && password.text.isEmpty)
                                           || (request.isOperation && prepared?.requestID != request.id))
             setButtons([reject, approveButton])
         }
@@ -327,7 +327,7 @@ final class DAppRequestSheet: Sheet {
     private func approve() {
         isWorking = true
         updateButtons()
-        let passphrase = needsPassphrase ? Form.text(passphraseField) : nil
+        let passphrase = needsPassphrase ? password.text : nil
         Task {
             defer { isWorking = false; updateButtons() }
             switch request {
@@ -364,6 +364,6 @@ final class DAppRequestSheet: Sheet {
 
     override func closed() {
         prepareTask?.cancel()
-        Form.clear(passphraseField)
+        password.clear()
     }
 }

@@ -40,6 +40,10 @@ final class WalletHomeView {
     private var trackers: [Tracker] = []
     /// Which kind of screen `content` holds, so it is rebuilt only when that changes.
     private var shownWallet: Wallet.ID?? = .none
+    /// The experimental settings the dashboard was drawn with: a change draws it again, as
+    /// upstream's `.id(branding)` does (layer marks and consolidated balances redraw their own
+    /// views there; here the dashboard is drawn again for those too).
+    private var shownExperimental: (branding: Layer2Branding, marks: LayerMarks, consolidates: Bool)?
     private var dashboard: DashboardView?
     private var welcome: NoWalletsView?
 
@@ -85,8 +89,14 @@ final class WalletHomeView {
     /// The account dashboard or, with no accounts, the welcome screen.
     private func updateContent() {
         let wallet = model.selectedWallet
-        guard shownWallet != .some(wallet?.id) else { return }
+        let experimental = Experimental.shared
+        let settings = (branding: experimental.branding, marks: experimental.marks, consolidates: experimental.consolidates)
+        let brandingChanged = shownExperimental.map { $0.branding != settings.branding } ?? false
+        guard shownWallet != .some(wallet?.id) || shownExperimental.map({ $0 != settings }) ?? true else { return }
         shownWallet = .some(wallet?.id)
+        shownExperimental = settings
+        // `.onChange(of: branding) { Task { await model.refresh() } }`: the rows' names follow.
+        if brandingChanged { Task { await model.refresh() } }
         if let wallet {
             let dashboard = DashboardView(model: model, wallet: wallet)
             self.dashboard = dashboard
@@ -152,8 +162,10 @@ final class WalletHomeView {
 
     private var nftOperation: TransferNFTSheet?
     private var nftDownload: DownloadNFTsSheet?
+    private var tokenOperation: TransferTokenSheet?
+    private var domainOperation: TransferDomainSheet?
 
-    /// `.sheet(item: $model.nftOperation)` and `.sheet(item: $model.nftDownload)`: each shown
+    /// `.sheet(item:)` for `nftOperation`, `tokenOperation`, `domainOperation` and `nftDownload`: each shown
     /// while its item is set, the item cleared when the sheet closes.
     private func presentNFTSheets() {
         let operation = model.nftOperation
@@ -169,6 +181,38 @@ final class WalletHomeView {
                     guard let self, self.nftOperation === view else { return }
                     self.nftOperation = nil
                     model.nftOperation = nil
+                }
+                view.present(over: root)
+            }
+        }
+        let token = model.tokenOperation
+        if tokenOperation?.token != token {
+            let old = tokenOperation
+            tokenOperation = nil
+            old?.dismiss()
+            if let token {
+                let view = TransferTokenSheet(model: model, token: token)
+                tokenOperation = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.tokenOperation === view else { return }
+                    self.tokenOperation = nil
+                    model.tokenOperation = nil
+                }
+                view.present(over: root)
+            }
+        }
+        let domain = model.domainOperation
+        if domainOperation?.domain != domain {
+            let old = domainOperation
+            domainOperation = nil
+            old?.dismiss()
+            if let domain {
+                let view = TransferDomainSheet(model: model, domain: domain)
+                domainOperation = view
+                view.onClosed = { [weak self, weak view, model] in
+                    guard let self, self.domainOperation === view else { return }
+                    self.domainOperation = nil
+                    model.domainOperation = nil
                 }
                 view.present(over: root)
             }
@@ -245,6 +289,7 @@ final class WalletHomeView {
         case "scan-qr": ScanQRSheet(model: model)
         case "networks": NetworksSheet(model: model)
         case "bridge": BridgeSheet(model: model)
+        case "move-assets": MoveAssetsSheet(model: model)
         case "shield": ShieldSheet(model: model)
         case "unshield": UnshieldSheet(model: model)
         case "send-shielded": SendShieldedSheet(model: model)
@@ -275,6 +320,7 @@ final class DashboardView {
     private let menu: AppMenuButton
     private let actions: ActionButtonsView
     private let activity: ActivityTabsView
+    private let expiring: ExpiringDomainsNotice
     private let balances = UI.vbox(spacing: 24)
     private var assets: AssetListView?
     private var delegate: DelegateRowView?
@@ -290,7 +336,8 @@ final class DashboardView {
         actions = ActionButtonsView(model: model)
         let header = UI.hbox(spacing: 8, [identity.root.expand(h: true), badge.root.align(v: GTK_ALIGN_START), menu.root.align(v: GTK_ALIGN_START)])
         activity = ActivityTabsView(model: model)
-        children = [header, actions.root, balances, UI.separator(), activity.root]
+        expiring = ExpiringDomainsNotice(model: model)
+        children = [header, expiring.root, actions.root, balances, UI.separator(), activity.root]
         tracker = Tracker { [unowned self] in self.updateBalances() }
     }
 
@@ -391,5 +438,44 @@ enum StartOption {
         let button = UI.button(content: row, classes: ["start-option"] + (prominent ? ["prominent"] : []), action: action)
         button.accessibleLabel("\(title). \(detail)")
         return button
+    }
+}
+
+/// The user's Tezos Domains names that expire within two months, on the dashboard, soonest
+/// first, each with a Renew link to Tezos Domains; dismissable for the session. Shown while
+/// `model.expiringDomains` has any and it was not dismissed. Upstream's `ExpiringDomainsNotice`.
+@MainActor
+final class ExpiringDomainsNotice {
+    let model: WalletViewModel
+    let root: Widget
+    private let lines = UI.vbox(spacing: 4)
+    private var tracker: Tracker?
+
+    init(model: WalletViewModel) {
+        self.model = model
+        let icon = UI.image(icon: "x-office-calendar-symbolic", pixelSize: 20).classes("warning-text").align(v: GTK_ALIGN_START)
+        let close = UI.iconButton("window-close-symbolic", tooltip: "Hide until Signet starts again") { [model] in model.expiringDomainsDismissed = true }
+        close.align(v: GTK_ALIGN_START)
+        root = UI.hbox(spacing: 10, [icon, lines.expand(h: true), close]).classes("expiring-domains")
+        tracker = Tracker { [unowned self] in self.update() }
+    }
+
+    private func update() {
+        let names = model.expiringDomains
+        root.isVisible = !names.isEmpty && !model.expiringDomainsDismissed
+        guard root.isVisible else { return }
+        let now = Date()
+        var rows: [Widget] = names.prefix(3).map { name in
+            var line = [UI.label("\(name.name) expires \(DomainReminders.phrase(until: name.expires, now: now))", classes: ["heading"]),
+                        UI.label("· \(name.owner)", classes: ["dim-label"])]
+            if let url = URL(string: "https://app.tezos.domains/domain/\(name.name)") {
+                line.append(Widget(gtk_link_button_new_with_label(url.absoluteString, "Renew")!).classes("flat"))
+            }
+            return UI.hbox(spacing: 6, line)
+        }
+        if names.count > 3 {
+            rows.append(UI.label("and \(names.count - 3) more", classes: ["dim-label", "caption"]))
+        }
+        lines.setChildren(rows)
     }
 }

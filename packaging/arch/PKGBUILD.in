@@ -1,6 +1,6 @@
 # Maintainer: Chris Pinnock <chris_pinnock@mac.com>
 #
-# signet-gtk-bin: the release tarball (a build with the Swift runtime linked in), so Arch needs
+# signet-gtk-bin: the release's Arch tarball (built on Arch, the Swift runtime linked in), so Arch needs
 # no Swift toolchain. Made from PKGBUILD.in by packaging/arch/build-arch.sh, which fills in the
 # version and checksum.
 pkgname=signet-gtk-bin
@@ -21,7 +21,7 @@ source=("@SOURCE@")
 sha256sums=('@SHA256@')
 
 package() {
-    cd "signet-gtk-$pkgver-linux-$CARCH"
+    cd "signet-gtk-$pkgver-arch-$CARCH"
     install -d "$pkgdir/usr"
     cp -a bin lib share "$pkgdir/usr/"
     install -Dm644 share/doc/signet-gtk/copyright "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
