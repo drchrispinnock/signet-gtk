@@ -23,12 +23,22 @@
 <p class="lede">Install Signet Wallet for GTK using the Signet APT repository.</p>
 </header>
 <div class="wrap">
-<nav aria-label="Package navigation"><a href="https://signetwallet.org/">Wallet home</a><a href="#apt-repository">APT repository</a><a href="https://apt.signetwallet.org/keys/signet.asc">Signing key</a></nav>
+<nav aria-label="Package navigation"><a href="https://signetwallet.org/">Wallet home</a><a href="#extrepo">Debian: extrepo</a><a href="#apt-repository">APT repository</a><a href="https://apt.signetwallet.org/keys/signet.asc">Signing key</a></nav>
 <main id="main">
+<section id="extrepo" aria-labelledby="extrepo-title">
+<p class="eyebrow">Debian 13 · Quickest</p>
+<h2 id="extrepo-title">Debian: with extrepo</h2>
+<p>On <strong>Debian Linux 13 (trixie)</strong>, the Signet repository is listed in Debian’s <a href="https://manpages.debian.org/trixie/extrepo/extrepo.1p.en.html"><code>extrepo</code></a>, which adds the repository and its signing key for you. Its name there is <code>signetwallet</code>.</p>
+<pre tabindex="0" role="region" aria-labelledby="extrepo-title"><code>sudo apt install -y extrepo
+sudo extrepo enable signetwallet
+sudo apt update
+sudo apt install -y signet-gtk</code></pre>
+<p class="fine">Use either extrepo or the manual steps below, not both, so that APT does not see the same repository twice.</p>
+</section>
 <section id="apt-repository" aria-labelledby="apt-title">
 <p class="eyebrow">Linux · GTK</p>
 <h2 id="apt-title">APT repository</h2>
-<p>Follow these steps in a terminal on <strong>Debian Linux 13 (trixie)</strong> or <strong>Ubuntu 26.04 LTS (resolute)</strong> to install <code>signet-gtk</code>. Packages are built for amd64 on both, and for arm64 on Debian.</p>
+<p>To set the repository up by hand, follow these steps in a terminal on <strong>Debian Linux 13 (trixie)</strong> or <strong>Ubuntu 26.04 LTS (resolute)</strong> to install <code>signet-gtk</code>. Packages are built for amd64 on both, and for arm64 on Debian.</p>
 <div class="intro-note"><p>The repository is hosted at <a href="https://apt.signetwallet.org/">apt.signetwallet.org</a>. These instructions use <code>sudo</code> for commands that require administrator privileges.</p></div>
 <h3 id="key-title">1. Import the signing key</h3>
 <p>Install GPG and curl, then add the repository’s signing key to the APT keyring directory.</p>
